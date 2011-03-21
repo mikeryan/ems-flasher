@@ -1,0 +1,26 @@
+The EMS flasher is a simple command line flasher for the 64 Mbit EMS USB
+flash cart for Game Boy.
+
+For more information, see the web site at:
+http://lacklustre.net/gb/ems/
+
+BUILDING
+
+make
+
+RUNNING
+
+./ems totally_legit_rom.gb
+
+This will flash the ROM file to the first bank on the cart.
+
+BEWARE: if you give it a huge file on input, it will continue writing
+past the end of the cart and do unknown amounts of damage. Please don't
+do this!
+
+BUGS
+
+Preferably use the bug tracker found at the web site (at the top of this
+doc)
+
+You can also send em to mikeryan \at lacklustre.net
