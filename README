@@ -8,6 +8,14 @@ BUILDING
 
 make
 
+On Mac, prior to building you must install pkgconfig and libusb from
+ports, like so:
+
+sudo port install pkgconfig
+sudo port install libusb
+
+(thanks to hyarion for this info)
+
 RUNNING
 
 ./ems totally_legit_rom.gb
