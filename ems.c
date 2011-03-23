@@ -197,6 +197,10 @@ void usage(char *name) {
     printf("\n");
     printf("Advanced options:\n");
     printf("    --blocksize <size>      block size to use while writing (Windows software uses 32)\n");
+    printf("\n");
+    printf("Written by Mike Ryan <mikeryan@lacklustre.net>\n");
+    printf("See web site for more info:\n");
+    printf("    http://lacklustre.net/gb/ems/\n");
     exit(1);
 }
 
