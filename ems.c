@@ -31,11 +31,56 @@ enum {
 };
 
 static struct libusb_device_handle *devh = NULL;
+int claimed = 0;
 
 static int find_ems_device(void) {
 	devh = libusb_open_device_with_vid_pid(NULL, 0x4670, 0x9394);
 
 	return devh ? 0 : -EIO;
+}
+
+/**
+ * Init the flasher. Inits libusb and claims the device. Aborts if libusb
+ * can't be initialized.
+ *
+ * Returns:
+ *  0       Success
+ *  < 0     Failure
+ */
+int ems_init(void) {
+    int r;
+
+    r = libusb_init(NULL);
+    if (r < 0) {
+        fprintf(stderr, "failed to initialize libusb\n");
+        exit(1); // pretty much hosed
+    }
+
+    r = find_ems_device();
+    if (r < 0) {
+        fprintf(stderr, "Could not find/open device, is it plugged in?\n");
+        return r;
+    }
+
+    r = libusb_claim_interface(devh, 0);
+    if (r < 0) {
+        fprintf(stderr, "usb_claim_interface error %d\n", r);
+        return r;
+    }
+
+    claimed = 1;
+    return 0;
+}
+
+/**
+ * Cleanup / release the device. Registered with atexit.
+ */
+void ems_deinit(void) {
+    if (claimed)
+        libusb_release_interface(devh, 0);
+
+    libusb_close(devh);
+    libusb_exit(NULL);
 }
 
 static void ems_command_init(
@@ -131,38 +176,29 @@ void get_options(int argc, char **argv) {
 }
 
 int main(int argc, char **argv) {
-    int r = 1;
-    int i;
+    int r, i;
 
     get_options(argc, argv);
 
-    r = libusb_init(NULL);
-    if (r < 0) {
-        fprintf(stderr, "failed to initialise libusb\n");
-        exit(1);
-    }
-
-    r = find_ems_device();
-    if (r < 0) {
-        fprintf(stderr, "Could not find/open device\n");
-        goto out;
-    }
-
-    r = libusb_claim_interface(devh, 0);
-    if (r < 0) {
-        fprintf(stderr, "usb_claim_interface error %d\n", r);
-        goto out;
-    }
+    // call the cleanup when we're done
+    atexit(ems_deinit);
 
     if (opts.verbose)
-        printf("claimed interface\n");
+        printf("trying to find EMS cart\n");
+
+    r = ems_init();
+    if (r < 0)
+        return 1;
+
+    if (opts.verbose)
+        printf("claimed EMS cart\n");
 
     // file provided: write the file
     if (opts.file != NULL) {
         FILE *write_file = fopen(opts.file, "r");
         if (write_file == NULL) {
             warn("Can't open ROM file %s", opts.file);
-            goto out_release;
+            return 1;
         }
 
         char buf[32];
@@ -172,7 +208,7 @@ int main(int argc, char **argv) {
             r = ems_write(offset, buf, sizeof(buf));
             if (r < 0) {
                 warn("can't write %d", r);
-                goto out_release;
+                return 1;
             }
 
             offset += sizeof(buf);
@@ -201,10 +237,5 @@ int main(int argc, char **argv) {
         }
     }
 
-out_release:
-    libusb_release_interface(devh, 0);
-out:
-    libusb_close(devh);
-    libusb_exit(NULL);
-    return r >= 0 ? r : -r;
+    return 0;
 }
