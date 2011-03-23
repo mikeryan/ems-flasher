@@ -95,6 +95,12 @@ void ems_deinit(void) {
     libusb_exit(NULL);
 }
 
+/**
+ * Initialize a command buffer. Commands are a 1 byte command code followed by
+ * a 4 byte address and a 4 byte value.
+ *
+ * buf must point to a memory chunk of size >= 9 bytes
+ */
 static void ems_command_init(
         unsigned char *buf, // buffer to init
         unsigned char cmd,  // command to run
@@ -106,7 +112,18 @@ static void ems_command_init(
     *(uint32_t *)(buf + 5) = htonl(val);
 }
 
-
+/**
+ * Read some bytes from the cart.
+ *
+ * Params:
+ *  offset  absolute read address from the cart
+ *  buf     buffer to read into (buffer must be at least count bytes)
+ *  count   number of bytes to read
+ *
+ * Returns:
+ *  >= 0    number of bytes read (will always == count)
+ *  < 0     error sending command or reading data
+ */
 static int ems_read(uint32_t offset, unsigned char *buf, size_t count) {
     int r, transferred;
     unsigned char cmd_buf[9];
@@ -133,6 +150,18 @@ static int ems_read(uint32_t offset, unsigned char *buf, size_t count) {
     return transferred;
 }
 
+/**
+ * Write to the cartridge.
+ *
+ * Params:
+ *  offset  address to write to
+ *  buf     data to write
+ *  count   number of bytes out of buf to write
+ *
+ * Returns:
+ *  >= 0    number of bytes written (will always == count)
+ *  < 0     error writing data
+ */
 static int ems_write(uint32_t offset, unsigned char *buf, size_t count) {
     int r, transferred;
     unsigned char *write_buf;
@@ -155,6 +184,9 @@ static int ems_write(uint32_t offset, unsigned char *buf, size_t count) {
     return r;
 }
 
+/**
+ * Get the options to the binary. Options are stored in the global "opts".
+ */
 void get_options(int argc, char **argv) {
     int c;
 
@@ -186,6 +218,9 @@ void get_options(int argc, char **argv) {
         opts.file = argv[optind];
 }
 
+/**
+ * Main
+ */
 int main(int argc, char **argv) {
     int r, i;
 
