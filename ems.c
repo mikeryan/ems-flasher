@@ -19,12 +19,14 @@
 /* options */
 typedef struct _options_t {
     int verbose;
+    int blocksize;
     char *file;
 } options_t;
 
 // defaults
 options_t opts = {
     .verbose            = 0,
+    .blocksize          = 32,
     .file               = NULL,
 };
 
@@ -188,17 +190,18 @@ static int ems_write(uint32_t offset, unsigned char *buf, size_t count) {
  * Get the options to the binary. Options are stored in the global "opts".
  */
 void get_options(int argc, char **argv) {
-    int c;
+    int c, optval;
 
     while (1) {
         int option_index = 0;
         static struct option long_options[] = {
             {"verbose", 0, 0, 'v'},
+            {"blocksize", 1, 0, 's'},
             {0, 0, 0, 0}
         };
 
         c = getopt_long(
-            argc, argv, "v",
+            argc, argv, "vs:",
             long_options, &option_index
         );
         if (c == -1)
@@ -207,6 +210,14 @@ void get_options(int argc, char **argv) {
         switch (c) {
             case 'v':
                 opts.verbose = 1;
+                break;
+            case 's':
+                optval = atoi(optarg);
+                if (optval <= 0) {
+                    printf("Error: block size must be > 0\n");
+                    exit(1);
+                }
+                opts.blocksize = optval;
                 break;
             default:
                 break;
@@ -247,17 +258,18 @@ int main(int argc, char **argv) {
             return 1;
         }
 
-        unsigned char buf[32];
+        int blocksize = opts.blocksize;
+        unsigned char *buf = malloc(blocksize);
         uint32_t offset = 0;
 
-        while (fread(buf, sizeof(buf), 1, write_file) == 1) {
-            r = ems_write(offset, buf, sizeof(buf));
+        while (fread(buf, blocksize, 1, write_file) == 1) {
+            r = ems_write(offset, buf, blocksize);
             if (r < 0) {
-                warn("can't write %d", r);
+                warn("can't write %d bytes at offset %u", blocksize, offset);
                 return 1;
             }
 
-            offset += sizeof(buf);
+            offset += blocksize;
         }
     }
 
