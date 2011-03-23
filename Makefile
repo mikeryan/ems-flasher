@@ -1,7 +1,7 @@
 PROG = ems
 OBJS = ems.o
 
-CFLAGS  = -g
+CFLAGS  = -g -Wall -Werror
 CFLAGS += `pkg-config --cflags libusb-1.0`
 
 all: $(PROG)

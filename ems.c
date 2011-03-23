@@ -1,3 +1,5 @@
+#include <ctype.h>
+#include <err.h>
 #include <errno.h>
 #include <getopt.h>
 #include <signal.h>
@@ -147,7 +149,6 @@ void get_options(int argc, char **argv) {
     int c;
 
     while (1) {
-        int this_option_optind = optind ? optind : 1;
         int option_index = 0;
         static struct option long_options[] = {
             {"verbose", 0, 0, 'v'},
@@ -201,7 +202,7 @@ int main(int argc, char **argv) {
             return 1;
         }
 
-        char buf[32];
+        unsigned char buf[32];
         uint32_t offset = 0;
 
         while (fread(buf, sizeof(buf), 1, write_file) == 1) {
