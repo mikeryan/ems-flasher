@@ -12,6 +12,10 @@
 
 #include <libusb.h>
 
+/* magic numbers! */
+#define EMS_VID 0x4670
+#define EMS_PID 0x9394
+
 /* options */
 typedef struct _options_t {
     int verbose;
@@ -35,10 +39,16 @@ enum {
 static struct libusb_device_handle *devh = NULL;
 int claimed = 0;
 
+/**
+ * Attempt to find the EMS cart by vid/pid.
+ *
+ * Returns:
+ *  0       success
+ *  < 0     failure
+ */
 static int find_ems_device(void) {
-	devh = libusb_open_device_with_vid_pid(NULL, 0x4670, 0x9394);
-
-	return devh ? 0 : -EIO;
+    devh = libusb_open_device_with_vid_pid(NULL, EMS_VID, EMS_PID);
+    return devh ? 0 : -EIO;
 }
 
 /**
