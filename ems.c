@@ -187,6 +187,20 @@ static int ems_write(uint32_t offset, unsigned char *buf, size_t count) {
 }
 
 /**
+ * Usage
+ */
+void usage(char *name) {
+    printf("Usage: %s [ --verbose ] <totally_legit_rom.gb>\n", name);
+    printf("Writes a ROM file to the first bank of an EMS 64 Mbit USB flash cart\n\n");
+    printf("Options:\n");
+    printf("    --verbose               displays more information\n");
+    printf("\n");
+    printf("Advanced options:\n");
+    printf("    --blocksize <size>      block size to use while writing (Windows software uses 32)\n");
+    exit(1);
+}
+
+/**
  * Get the options to the binary. Options are stored in the global "opts".
  */
 void get_options(int argc, char **argv) {
@@ -195,19 +209,23 @@ void get_options(int argc, char **argv) {
     while (1) {
         int option_index = 0;
         static struct option long_options[] = {
+            {"help", 0, 0, 'h'},
             {"verbose", 0, 0, 'v'},
             {"blocksize", 1, 0, 's'},
             {0, 0, 0, 0}
         };
 
         c = getopt_long(
-            argc, argv, "vs:",
+            argc, argv, "hvs:",
             long_options, &option_index
         );
         if (c == -1)
             break;
 
         switch (c) {
+            case 'h':
+                usage(argv[0]);
+                break;
             case 'v':
                 opts.verbose = 1;
                 break;
@@ -215,7 +233,7 @@ void get_options(int argc, char **argv) {
                 optval = atoi(optarg);
                 if (optval <= 0) {
                     printf("Error: block size must be > 0\n");
-                    exit(1);
+                    usage(argv[0]);
                 }
                 opts.blocksize = optval;
                 break;
