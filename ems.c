@@ -169,7 +169,7 @@ static int ems_write(uint32_t offset, unsigned char *buf, size_t count) {
     // thx libusb for having no scatter/gather io
     write_buf = malloc(count + 9);
     if (write_buf == NULL)
-        abort(); // fuck it
+        err(1, "malloc");
 
     // set up the command buffer
     ems_command_init(write_buf, CMD_WRITE, offset, count);
