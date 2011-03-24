@@ -241,7 +241,7 @@ void get_options(int argc, char **argv) {
         };
 
         c = getopt_long(
-            argc, argv, "hVvs:",
+            argc, argv, "hVvs:rw",
             long_options, &option_index
         );
         if (c == -1)
