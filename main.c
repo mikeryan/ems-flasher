@@ -7,7 +7,7 @@
 #include "ems.h"
 
 // don't forget to bump this :P
-#define VERSION "0.01"
+#define VERSION "0.02"
 
 // one bank is 32 megabits
 #define BANK_SIZE 0x400000
