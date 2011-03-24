@@ -410,5 +410,8 @@ int main(int argc, char **argv) {
     else
         errx(1, "Unknown mode %d, file a bug report", opts.mode);
 
+    // belt and suspenders
+    free(buf);
+
     return 0;
 }
