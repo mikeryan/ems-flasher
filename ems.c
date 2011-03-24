@@ -25,6 +25,7 @@
 // operation mode
 #define MODE_READ   1
 #define MODE_WRITE  2
+#define MODE_TITLE  3
 
 /* options */
 typedef struct _options_t {
@@ -203,12 +204,14 @@ static int ems_write(uint32_t offset, unsigned char *buf, size_t count) {
  */
 void usage(char *name) {
     printf("Usage: %s < --read | --write > [ --verbose ] <totally_legit_rom.gb>\n", name);
+    printf("       %s --title\n", name);
     printf("       %s --version\n", name);
     printf("       %s --help\n", name);
     printf("Writes a ROM file to the first bank of an EMS 64 Mbit USB flash cart\n\n");
     printf("Options:\n");
     printf("    --read                  read entire first bank into file\n");
     printf("    --write                 write ROM file to first bank\n");
+    printf("    --title                 title of the ROM in bank 1\n");
     printf("    --verbose               displays more information\n");
     printf("\n");
     printf("You MUST supply exactly one of --read or --write\n");
@@ -236,12 +239,13 @@ void get_options(int argc, char **argv) {
             {"verbose", 0, 0, 'v'},
             {"read", 0, 0, 'r'},
             {"write", 0, 0, 'w'},
+            {"title", 0, 0, 't'},
             {"blocksize", 1, 0, 's'},
             {0, 0, 0, 0}
         };
 
         c = getopt_long(
-            argc, argv, "hVvs:rw",
+            argc, argv, "hVvs:rwt",
             long_options, &option_index
         );
         if (c == -1)
@@ -266,6 +270,10 @@ void get_options(int argc, char **argv) {
                 if (opts.mode != 0) goto mode_error;
                 opts.mode = MODE_WRITE;
                 break;
+            case 't':
+                if (opts.mode != 0) goto mode_error;
+                opts.mode = MODE_TITLE;
+                break;
             case 's':
                 optval = atoi(optarg);
                 if (optval <= 0) {
@@ -285,19 +293,22 @@ void get_options(int argc, char **argv) {
     if (opts.mode == 0)
         goto mode_error;
 
-    // user didn't give a filename
-    if (optind >= argc) {
-        printf("Error: you must provide an %s filename\n", opts.mode == MODE_READ ? "input" : "output");
-        usage(argv[0]);
+    if (opts.mode == MODE_WRITE || opts.mode == MODE_READ) {
+        // user didn't give a filename
+        if (optind >= argc) {
+            printf("Error: you must provide an %s filename\n", opts.mode == MODE_READ ? "input" : "output");
+            usage(argv[0]);
+        }
+
+        // extra argument: ROM file
+        opts.file = argv[optind];
     }
 
-    // extra argument: ROM file
-    opts.file = argv[optind];
 
     return;
 
 mode_error:
-    printf("Error: must supply exactly one of --read or --write\n");
+    printf("Error: must supply exactly one of --read, --write, or --title\n");
     usage(argv[0]);
 }
 
@@ -380,6 +391,19 @@ int main(int argc, char **argv) {
 
         if (opts.verbose)
             printf("Successfully wrote %u from %s\n", offset, opts.file);
+    }
+
+    // read the title from the ROM
+    else if (opts.mode == MODE_TITLE) {
+        char buf[17];
+
+        r = ems_read(0x134, (unsigned char *)buf, 16);
+        if (r < 0)
+            errx(1, "can't read 16 bytes at offset 0x134\n");
+
+        // dirty little trick, doesn't work right on games with codes in the title
+        buf[16] = 0;
+        puts(buf);
     }
 
     // should never reach here
