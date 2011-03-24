@@ -12,6 +12,9 @@
 
 #include <libusb.h>
 
+// don't forget to bump this :P
+#define VERSION "0.01"
+
 /* magic numbers! */
 #define EMS_VID 0x4670
 #define EMS_PID 0x9394
@@ -191,6 +194,8 @@ static int ems_write(uint32_t offset, unsigned char *buf, size_t count) {
  */
 void usage(char *name) {
     printf("Usage: %s [ --verbose ] <totally_legit_rom.gb>\n", name);
+    printf("       %s --version\n", name);
+    printf("       %s --help\n", name);
     printf("Writes a ROM file to the first bank of an EMS 64 Mbit USB flash cart\n\n");
     printf("Options:\n");
     printf("    --verbose               displays more information\n");
@@ -214,13 +219,14 @@ void get_options(int argc, char **argv) {
         int option_index = 0;
         static struct option long_options[] = {
             {"help", 0, 0, 'h'},
+            {"version", 0, 0, 'V'},
             {"verbose", 0, 0, 'v'},
             {"blocksize", 1, 0, 's'},
             {0, 0, 0, 0}
         };
 
         c = getopt_long(
-            argc, argv, "hvs:",
+            argc, argv, "hVvs:",
             long_options, &option_index
         );
         if (c == -1)
@@ -229,6 +235,10 @@ void get_options(int argc, char **argv) {
         switch (c) {
             case 'h':
                 usage(argv[0]);
+                break;
+            case 'V':
+                printf("EMS-flasher %s\n", VERSION);
+                exit(0);
                 break;
             case 'v':
                 opts.verbose = 1;
@@ -242,6 +252,7 @@ void get_options(int argc, char **argv) {
                 opts.blocksize = optval;
                 break;
             default:
+                usage(argv[0]);
                 break;
         }
     }
