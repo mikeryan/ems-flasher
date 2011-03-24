@@ -1,4 +1,4 @@
-PROG = ems
+PROG = ems-flasher
 OBJS = ems.o
 
 CFLAGS  = -g -Wall -Werror
