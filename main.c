@@ -48,7 +48,7 @@ void usage(char *name) {
     printf("    --title                 title of the ROM in bank 1\n");
     printf("    --verbose               displays more information\n");
     printf("\n");
-    printf("You MUST supply exactly one of --read or --write\n");
+    printf("You MUST supply exactly one of --read, --write, or --title\n");
     printf("\n");
     printf("Advanced options:\n");
     printf("    --blocksize <size>      block size to use while writing (Windows software uses 32)\n");
@@ -130,7 +130,7 @@ void get_options(int argc, char **argv) {
     if (opts.mode == MODE_WRITE || opts.mode == MODE_READ) {
         // user didn't give a filename
         if (optind >= argc) {
-            printf("Error: you must provide an %s filename\n", opts.mode == MODE_READ ? "input" : "output");
+            printf("Error: you must provide an %s filename\n", opts.mode == MODE_READ ? "output" : "input");
             usage(argv[0]);
         }
 
