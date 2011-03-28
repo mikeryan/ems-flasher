@@ -1,3 +1,4 @@
+#include <assert.h>
 #include <err.h>
 #include <errno.h>
 #include <signal.h>
@@ -9,6 +10,8 @@
 
 #include <libusb.h>
 
+#include "ems.h"
+
 /* magic numbers! */
 #define EMS_VID 0x4670
 #define EMS_PID 0x9394
@@ -19,6 +22,8 @@
 enum {
     CMD_READ    = 0xff,
     CMD_WRITE   = 0x57,
+    CMD_READ_SRAM   = 0x6d,
+    CMD_WRITE_SRAM  = 0xab, // FIXME this is not the actual command
 };
 
 static struct libusb_device_handle *devh = NULL;
@@ -107,6 +112,7 @@ static void ems_command_init(
  * Read some bytes from the cart.
  *
  * Params:
+ *  from    FROM_ROM or FROM_SRAM
  *  offset  absolute read address from the cart
  *  buf     buffer to read into (buffer must be at least count bytes)
  *  count   number of bytes to read
@@ -115,11 +121,15 @@ static void ems_command_init(
  *  >= 0    number of bytes read (will always == count)
  *  < 0     error sending command or reading data
  */
-int ems_read(uint32_t offset, unsigned char *buf, size_t count) {
+int ems_read(int from, uint32_t offset, unsigned char *buf, size_t count) {
     int r, transferred;
+    unsigned char cmd;
     unsigned char cmd_buf[9];
 
-    ems_command_init(cmd_buf, CMD_READ, offset, count);
+    assert(from == FROM_ROM || from == FROM_SRAM);
+
+    cmd = from == FROM_ROM ? CMD_READ : CMD_READ_SRAM;
+    ems_command_init(cmd_buf, cmd, offset, count);
 
 #ifdef DEBUG
     int i;
@@ -145,6 +155,7 @@ int ems_read(uint32_t offset, unsigned char *buf, size_t count) {
  * Write to the cartridge.
  *
  * Params:
+ *  to      TO_ROM or TO_SRAM
  *  offset  address to write to
  *  buf     data to write
  *  count   number of bytes out of buf to write
@@ -153,14 +164,22 @@ int ems_read(uint32_t offset, unsigned char *buf, size_t count) {
  *  >= 0    number of bytes written (will always == count)
  *  < 0     error writing data
  */
-int ems_write(uint32_t offset, unsigned char *buf, size_t count) {
+int ems_write(int to, uint32_t offset, unsigned char *buf, size_t count) {
     int r, transferred;
     unsigned char *write_buf;
+
+    assert(to == TO_ROM || to == TO_SRAM);
 
     // thx libusb for having no scatter/gather io
     write_buf = malloc(count + 9);
     if (write_buf == NULL)
         err(1, "malloc");
+
+    // FIXME
+    if (to == TO_SRAM) {
+        printf("Not implemented! :(\n");
+        abort();
+    }
 
     // set up the command buffer
     ems_command_init(write_buf, CMD_WRITE, offset, count);

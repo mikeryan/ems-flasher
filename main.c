@@ -189,7 +189,7 @@ int main(int argc, char **argv) {
             printf("saving ROM into %s\n", opts.file);
 
         while (offset < BANK_SIZE) {
-            r = ems_read(offset, buf, blocksize);
+            r = ems_read(FROM_ROM, offset, buf, blocksize);
             if (r < 0) {
                 warnx("can't read %d bytes at offset %u\n", blocksize, offset);
                 return 1;
@@ -217,7 +217,7 @@ int main(int argc, char **argv) {
         printf("Writing ROM file %s\n", opts.file);
 
         while (fread(buf, blocksize, 1, write_file) == 1) {
-            r = ems_write(offset, buf, blocksize);
+            r = ems_write(TO_ROM, offset, buf, blocksize);
             if (r < 0) {
                 warnx("can't write %d bytes at offset %u", blocksize, offset);
                 return 1;
@@ -236,7 +236,7 @@ int main(int argc, char **argv) {
     else if (opts.mode == MODE_TITLE) {
         char buf[17];
 
-        r = ems_read(0x134, (unsigned char *)buf, 16);
+        r = ems_read(FROM_ROM, 0x134, (unsigned char *)buf, 16);
         if (r < 0)
             errx(1, "can't read 16 bytes at offset 0x134\n");
 
