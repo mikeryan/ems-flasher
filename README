@@ -42,7 +42,8 @@ damage. Please don't do this!
 
 Additionally, all modes take a --verbose flag for giving more output.
 You can also adjust the block size, but it is recommended you leave this
-to the default of 32 bytes (used by the Windows software).
+to the default of 4096 bytes for writing and 32 bytes for reading (used
+by the Windows software).
 
 For a full list of options, run the command with the --help flag.
 

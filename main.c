@@ -28,10 +28,14 @@ typedef struct _options_t {
 // defaults
 options_t opts = {
     .verbose            = 0,
-    .blocksize          = 32,
+    .blocksize          = 0,
     .mode               = 0,
     .file               = NULL,
 };
+
+// default blocksizes
+#define BLOCKSIZE_READ  4096
+#define BLOCKSIZE_WRITE 32
 
 /**
  * Usage
@@ -51,7 +55,7 @@ void usage(char *name) {
     printf("You MUST supply exactly one of --read, --write, or --title\n");
     printf("\n");
     printf("Advanced options:\n");
-    printf("    --blocksize <size>      block size to use while writing (Windows software uses 32)\n");
+    printf("    --blocksize <size>      bytes per block (default: 4096 read, 32 write)\n");
     printf("\n");
     printf("Written by Mike Ryan <mikeryan@lacklustre.net>\n");
     printf("See web site for more info:\n");
@@ -136,6 +140,10 @@ void get_options(int argc, char **argv) {
 
         // extra argument: ROM file
         opts.file = argv[optind];
+
+        // set a default blocksize if the user hasn't given one
+        if (opts.blocksize == 0)
+            opts.blocksize = opts.mode == MODE_READ ? BLOCKSIZE_READ : BLOCKSIZE_WRITE;
     }
 
 
