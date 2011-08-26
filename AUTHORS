@@ -1,0 +1,14 @@
+Mike Ryan <mikeryan@lacklustre.net>
+
+    - initial reverse engineering
+    - single bank read and write
+    - SRAM read
+    - ROM title read
+
+David Wendt JR. <dcrkid@yahoo.com>
+
+    - reverse engineered later part of protocol
+    - multiple bank read and write
+    - SRAM write
+    - full ROM header read
+    - checksum validation

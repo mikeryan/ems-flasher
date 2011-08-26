@@ -93,7 +93,7 @@ void usage(char *name) {
     printf("Advanced options:\n");
     printf("    --blocksize <size>      bytes per block (default: 4096 read, 32 write)\n");
     printf("\n");
-    printf("Written by Mike Ryan <mikeryan@lacklustre.net>\n");
+    printf("Written by Mike Ryan <mikeryan@lacklustre.net> and others\n");
     printf("See web site for more info:\n");
     printf("    http://lacklustre.net/gb/ems/\n");
     exit(1);
