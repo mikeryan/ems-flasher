@@ -23,7 +23,7 @@ enum {
     CMD_READ    = 0xff,
     CMD_WRITE   = 0x57,
     CMD_READ_SRAM   = 0x6d,
-    CMD_WRITE_SRAM  = 0xab, // FIXME this is not the actual command
+    CMD_WRITE_SRAM  = 0x4d,
 };
 
 static struct libusb_device_handle *devh = NULL;
@@ -166,23 +166,19 @@ int ems_read(int from, uint32_t offset, unsigned char *buf, size_t count) {
  */
 int ems_write(int to, uint32_t offset, unsigned char *buf, size_t count) {
     int r, transferred;
+    unsigned char cmd;
     unsigned char *write_buf;
 
     assert(to == TO_ROM || to == TO_SRAM);
+    cmd = to == TO_ROM ? CMD_WRITE : CMD_WRITE_SRAM;
 
     // thx libusb for having no scatter/gather io
     write_buf = malloc(count + 9);
     if (write_buf == NULL)
         err(1, "malloc");
-
-    // FIXME
-    if (to == TO_SRAM) {
-        printf("Not implemented! :(\n");
-        abort();
-    }
-
+    
     // set up the command buffer
-    ems_command_init(write_buf, CMD_WRITE, offset, count);
+    ems_command_init(write_buf, cmd, offset, count);
     memcpy(write_buf + 9, buf, count);
 
     r = libusb_bulk_transfer(devh, EMS_EP_SEND, write_buf, count + 9, &transferred, 0);
