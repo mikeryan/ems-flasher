@@ -322,10 +322,10 @@ int main(int argc, char **argv) {
 
     // read the ROM header
     else if (opts.mode == MODE_TITLE) {
-        char buf[512];
+        unsigned char buf[512];
         int i;
 
-        r = ems_read(FROM_ROM, 0, (unsigned char *)buf, 512);
+        r = ems_read(FROM_ROM, 0, buf, 512);
         if (r < 0)
             errx(1, "Couldn't read ROM header at bank 0, offset 0, len 512\n");
         
