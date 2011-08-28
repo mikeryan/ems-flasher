@@ -9,5 +9,8 @@ all: $(PROG)
 $(PROG): $(OBJS)
 	$(CC) -o $(PROG) $(OBJS) `pkg-config --libs libusb-1.0`
 
+install: $(PROG)
+	install ems-flasher /usr/local/bin
+
 clean:
 	rm -f $(PROG) $(OBJS)
