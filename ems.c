@@ -37,8 +37,50 @@ static int claimed = 0;
  *  < 0     failure
  */
 static int find_ems_device(void) {
-    devh = libusb_open_device_with_vid_pid(NULL, EMS_VID, EMS_PID);
-    return devh ? 0 : -EIO;
+    ssize_t num_devices = 0;
+    libusb_device **device_list = NULL;
+    struct libusb_device_descriptor device_descriptor;
+    int i = 0;
+    int retval = 0;
+
+    num_devices = libusb_get_device_list(NULL, &device_list);
+    if (num_devices >= 0) {
+        for (; i < num_devices; ++i) {
+            (void) memset(&device_descriptor, 0, sizeof(device_descriptor));
+            retval = libusb_get_device_descriptor(device_list[i], &device_descriptor);
+            if (retval == 0) {
+                if (device_descriptor.idVendor == EMS_VID
+                    && device_descriptor.idProduct == EMS_PID) {
+                    retval = libusb_open(device_list[i], &devh);
+                    if (retval != 0) {
+                        /*
+                         * According to the documentation, devh will not
+                         * be populated on error, so it should remain
+                         * NULL.
+                         */
+                        fprintf(stderr, "Failed to open device (libusb error: %s).\n", libusb_error_name(retval));
+#ifdef __linux__                      
+                        if (retval == LIBUSB_ERROR_ACCESS) {
+                            fprintf(stderr, "Try running as root/sudo or update udev rules (check the FAQ for more info).\n");
+                        }
+#endif
+                    }
+                    break;
+                }
+            } else {
+                fprintf(stderr, "Failed to get device description (libusb error: %s).\n", libusb_error_name(retval));
+            }
+        }
+        if (i == num_devices) {
+            fprintf(stderr, "Could not find device, is it plugged in?\n");
+        }
+        libusb_free_device_list(device_list, 1);
+        device_list = NULL;
+    } else {
+      fprintf(stderr, "Failed to get device list: %s\n", libusb_error_name((int)num_devices));
+    }
+
+    return devh != NULL ? 0 : -EIO;
 }
 
 /**
@@ -66,7 +108,6 @@ int ems_init(void) {
 
     r = find_ems_device();
     if (r < 0) {
-        fprintf(stderr, "Could not find/open device, is it plugged in?\n");
         return r;
     }
 
