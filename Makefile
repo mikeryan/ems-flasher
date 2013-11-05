@@ -4,7 +4,6 @@ OBJS = ems.o main.o
 MANDIR = /usr/share/man
 
 CFLAGS  = -g -Wall -Werror -pedantic -std=c99
-CFLAGS += `pkg-config --cflags libusb-1.0`
 
 all: $(PROG)
 
@@ -17,3 +16,8 @@ install: $(PROG)
 
 clean:
 	rm -f $(PROG) $(OBJS)
+
+.c.o:
+	$(CC) $(CFLAGS) `pkg-config --cflags libusb-1.0` -c $<
+
+.SUFFIXES: .c .o
