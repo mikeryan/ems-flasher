@@ -21,13 +21,17 @@ http://lacklustre.net/gb/ems/
 BUILDING
 --------
 
-```make```
+```
+make
+```
 
 On Mac, prior to building you must install pkgconfig and libusb from
 ports, like so:
 
-```sudo port install pkgconfig
-sudo port install libusb```
+```
+sudo port install pkgconfig
+sudo port install libusb
+```
 
 (thanks to hyarion for this info)
 
@@ -64,14 +68,16 @@ For a full list of options, run the command with the --help flag.
 EXAMPLES
 --------
 
-```# write the ROM to the cart
+```
+# write the ROM to the cart
 ./ems-flasher --write totally_legit_rom.gb
 
 # saves the contents of the cart into the file; print some extra info
 ./ems-flasher --verbose --read not_warez.gb
 
 # print out the title
-./ems-flasher --title```
+./ems-flasher --title
+```
 
 BUGS
 ----
