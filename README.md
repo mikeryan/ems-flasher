@@ -3,14 +3,15 @@ ems-flasher
 
 [![Build Status](https://travis-ci.org/gheja/ems-flasher.png?branch=master)](https://travis-ci.org/gheja/ems-flasher)
 
-EMS flasher for _GB USB smart card 64M_, a flash cartridge for GameBoy.
+EMS flasher for the _GB USB smart card 64M_, a flash cartridge for GameBoy.
 
 The hardware can be obtained from: http://store.kitsch-bent.com/product/usb-64m-smart-card
 
 Forked from: http://lacklustre.net/gb/ems/
 
-Original README
-===============
+
+Original about
+--------------
 
 The EMS flasher is a simple command line flasher for the 64 Mbit EMS USB
 flash cart for Game Boy.
@@ -20,15 +21,13 @@ This software was written by Mike Ryan <mikeryan \at lacklustre.net>
 For more information, see the web site at:
 http://lacklustre.net/gb/ems/
 
-BUILDING
---------
 
-```
-make
-```
+Prerequisites
+-------------
 
-On Mac, prior to building you must install pkgconfig and libusb from
-ports, like so:
+To build ems-flasher pkg-config and lubusb is needed.
+
+On Mac you can install them by:
 
 ```
 sudo port install pkgconfig
@@ -37,14 +36,29 @@ sudo port install libusb
 
 (thanks to hyarion for this info)
 
-RUNNING
+On Ubuntu/Debian you can install them by:
+```
+sudo apt-get install pkg-config libusb-1.0-0-dev
+```
+
+
+Building
+--------
+
+Build is automated by a Makefile. To build simply run the following:
+
+```
+make
+```
+
+
+Running
 -------
 
 The software has three major modes of operation:
-
- * write ROM to cart
- * read ROM from cart
- * read title of ROM on cart
+  * write ROM to cart
+  * read ROM from cart
+  * read title of ROM on cart
 
 To write use --write, to read use --read, and to get the title use
 --title.
@@ -67,7 +81,7 @@ by the Windows software).
 
 For a full list of options, run the command with the --help flag.
 
-EXAMPLES
+Examples
 --------
 
 ```
@@ -81,7 +95,7 @@ EXAMPLES
 ./ems-flasher --title
 ```
 
-BUGS
+Bugs
 ----
 
 The software only handles a single ROM in the first bank of the cart.
