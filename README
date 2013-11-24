@@ -1,3 +1,15 @@
+ems-flasher
+===========
+
+EMS flasher for _GB USB smart card 64M_, a flash cartridge for GameBoy.
+
+The hardware can be obtained from: http://store.kitsch-bent.com/product/usb-64m-smart-card
+
+Forked from: http://lacklustre.net/gb/ems/
+
+Original README
+---------------
+
 The EMS flasher is a simple command line flasher for the 64 Mbit EMS USB
 flash cart for Game Boy.
 
