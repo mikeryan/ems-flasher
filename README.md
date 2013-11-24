@@ -1,6 +1,8 @@
 ems-flasher
 ===========
 
+[![Build Status](https://travis-ci.org/gheja/ems-flasher.png?branch=master)](https://travis-ci.org/gheja/ems-flasher)
+
 EMS flasher for _GB USB smart card 64M_, a flash cartridge for GameBoy.
 
 The hardware can be obtained from: http://store.kitsch-bent.com/product/usb-64m-smart-card
