@@ -8,7 +8,7 @@ The hardware can be obtained from: http://store.kitsch-bent.com/product/usb-64m-
 Forked from: http://lacklustre.net/gb/ems/
 
 Original README
----------------
+===============
 
 The EMS flasher is a simple command line flasher for the 64 Mbit EMS USB
 flash cart for Game Boy.
@@ -19,18 +19,20 @@ For more information, see the web site at:
 http://lacklustre.net/gb/ems/
 
 BUILDING
+--------
 
-make
+```make```
 
 On Mac, prior to building you must install pkgconfig and libusb from
 ports, like so:
 
-sudo port install pkgconfig
-sudo port install libusb
+```sudo port install pkgconfig
+sudo port install libusb```
 
 (thanks to hyarion for this info)
 
 RUNNING
+-------
 
 The software has three major modes of operation:
 
@@ -60,17 +62,19 @@ by the Windows software).
 For a full list of options, run the command with the --help flag.
 
 EXAMPLES
+--------
 
-# write the ROM to the cart
+```# write the ROM to the cart
 ./ems-flasher --write totally_legit_rom.gb
 
 # saves the contents of the cart into the file; print some extra info
 ./ems-flasher --verbose --read not_warez.gb
 
 # print out the title
-./ems-flasher --title
+./ems-flasher --title```
 
 BUGS
+----
 
 The software only handles a single ROM in the first bank of the cart.
 Reading and writing of SRAM is not supported (yet). The commands to do
