@@ -8,7 +8,7 @@
 #include "ems.h"
 
 // don't forget to bump this :P
-#define VERSION "0.02"
+#define VERSION "0.04"
 
 // one bank is 32 megabits
 #define BANK_SIZE 0x400000
@@ -352,12 +352,15 @@ int main(int argc, char **argv) {
         //Verify cartridge header checksum while we're at it
         uint8_t calculated_chk = 0;
         for (i = HEADER_TITLE; i < HEADER_CHKSUM; i++) {
-            calculated_chk -= buf[i] - 1;
+            calculated_chk -= buf[i] + 1;
         }
 
         if (calculated_chk != buf[HEADER_CHKSUM]) {
             printf("Cartridge header checksum invalid. This game will NOT boot on real hardware.\n");
-        }
+        } else {
+	    if (opts.verbose) 
+	        printf("Cartridge header checksum OK.\n");
+	}
 
         if (buf[HEADER_SGBFLAG] == 0x03 && buf[HEADER_OLDLICENSEE] != 0x33) {
             printf("SGB functions were enabled, but Old Licensee field is not set to 33h. This game will not be able to use SGB functions on real hardware.\n");
@@ -417,12 +420,15 @@ int main(int argc, char **argv) {
         //Verify cartridge header checksum while we're at it
         calculated_chk = 0;
         for (i = HEADER_TITLE; i < HEADER_CHKSUM; i++) {
-            calculated_chk -= buf[i] - 1;
+            calculated_chk -= buf[i] + 1;
         }
 
         if (calculated_chk != buf[HEADER_CHKSUM]) {
             printf("Cartridge header checksum invalid. This game will NOT boot on real hardware.\n");
-        }
+        } else {
+	    if (opts.verbose) 
+	        printf("Cartridge header checksum OK.\n");
+	}
 
         if (buf[HEADER_SGBFLAG] == 0x03 && buf[HEADER_OLDLICENSEE] != 0x33) {
             printf("SGB functions were enabled, but Old Licensee field is not set to 33h. This game will not be able to use SGB functions on real hardware.\n");
