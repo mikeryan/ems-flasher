@@ -23,7 +23,7 @@ http://lacklustre.net/gb/ems/
 Prerequisites
 -------------
 
-To build ems-flasher pkg-config and lubusb is needed.
+To build ems-flasher pkg-config and libusb are needed.
 
 On Mac you can install them by:
 
