@@ -104,3 +104,10 @@ Preferably use the bug tracker found at the web site (at the top of this
 doc) to report any bugs.
 
 You can also send em to mikeryan \at lacklustre.net
+
+
+Game Boy Camera
+---------------
+
+Extract images from Game Boy Camera saves using
+[rgbcdumper](https://github.com/Rombusevil/rgbcdumper)
