@@ -6,34 +6,34 @@
 .Nd utility to flash EMS 64 Mbit USB Game Boy cartridge
 .Sh SYNOPSIS
 .Nm
-.Fl -read\ \&
-.Op Fl -bank Ar num
-.Op Fl -blocksize Ar size
-.Op Fl -rom
-.Op Fl -save
-.Op Fl -verbose
+.Fl Fl read\ \&
+.Op Fl Fl bank Ar num
+.Op Fl Fl blocksize Ar size
+.Op Fl Fl rom
+.Op Fl Fl save
+.Op Fl Fl verbose
 .Ar romfile
 .Nm
-.Fl -write
-.Op Fl -bank Ar num
-.Op Fl -blocksize Ar size
-.Op Fl -rom
-.Op Fl -save
-.Op Fl -verbose
+.Fl Fl write
+.Op Fl Fl bank Ar num
+.Op Fl Fl blocksize Ar size
+.Op Fl Fl rom
+.Op Fl Fl save
+.Op Fl Fl verbose
 .Ar romfile
 .Nm
-.Fl -title
+.Fl Fl title
 .Sh DESCRIPTION
 The
 .Nm
 utility reads data from or writes data to a EMS 64 Mbit USB Game Boy cartridge.
 One of the following flags is required:
 .Bl -tag -width x
-.It Fl -read
+.It Fl Fl read
 read ROM/SRAM from cart
-.It Fl -write
+.It Fl Fl write
 write ROM/SRAM to cart
-.It Fl -header
+.It Fl Fl header
 print header of ROMs on cart to standard output
 .El
 .Pp
@@ -41,26 +41,26 @@ When in write or read mode,
 .Nm
 will automatically choose ROM versus SRAM based on the filename:
 if the filename ends in
-.Dq \&.sav ,
+.Dq .sav ,
 SRAM is assumed.
 .Pp
 In read or write mode, the available options are as follows:
 .Bl -tag -width Ds
-.It Fl -bank
+.It Fl Fl bank
 Select cart bank (1 or 2).
-.It Fl -blocksize Ar size
+.It Fl Fl blocksize Ar size
 Specify the blocksize in bytes.
 The default is 4096 for read, 32 for write.
-.It Fl -rom
+.It Fl Fl rom
 Force read/write of Flash ROM.
-.It Fl -save
+.It Fl Fl save
 Force read/write of SRAM.
-.It Fl -verbose
+.It Fl Fl verbose
 Display more information.
+.El
 .Sh EXIT STATUS
 .Ex -std ems-flasher
 .Sh EXAMPLES
-.Pp
 Write the ROM to the cart:
 .Dl $ ems-flasher --write totally_legit_rom.gb
 .Pp
@@ -79,4 +79,4 @@ was written by
 and others.
 .Sh HOMEPAGE
 .Lk https://lacklustre.net/projects/ems-flasher/
-.Lk https://github.com/mikeryan/ems-flasher
+.Lk https://github.com/mikeryan/ems-flasher/
