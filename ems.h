@@ -1,6 +1,7 @@
 #ifndef __EMS_H__
 #define __EMS_H__
 
+#include <stddef.h>
 #include <stdint.h>
 #include <inttypes.h>
 

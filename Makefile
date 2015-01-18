@@ -1,5 +1,5 @@
 PROG = ems-flasher
-OBJS = ems.o main.o header.o
+OBJS = ems.o main.o header.o cmd.o
 
 MANDIR = /usr/share/man
 
