@@ -2,6 +2,10 @@
 #define __EMS_H__
 
 #include <stdint.h>
+#include <inttypes.h>
+
+typedef uint_least32_t ems_size_t;
+#define PRIuEMSSIZE PRIuLEAST32
 
 int ems_init(void);
 
@@ -12,5 +16,7 @@ int ems_write(int to, uint32_t offset, unsigned char *buf, size_t count);
 #define FROM_SRAM   2
 #define TO_ROM      FROM_ROM
 #define TO_SRAM     FROM_SRAM
+
+#define PAGESIZE    ((ems_size_t)4<<20)
 
 #endif /* __EMS_H__ */
