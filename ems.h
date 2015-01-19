@@ -19,5 +19,6 @@ int ems_write(int to, uint32_t offset, unsigned char *buf, size_t count);
 #define TO_SRAM     FROM_SRAM
 
 #define PAGESIZE    ((ems_size_t)4<<20)
+#define ERASEBLOCKSIZE ((ems_size_t)128<<10)
 
 #endif /* __EMS_H__ */

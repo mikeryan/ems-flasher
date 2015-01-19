@@ -33,6 +33,8 @@ typedef struct _options_t {
     char *file;
     int bank;
     int space;
+    int rem_argc;
+    char **rem_argv;
 } options_t;
 
 // defaults
@@ -197,6 +199,8 @@ void get_options(int argc, char **argv) {
             printf("Error: you must provide an %s filename\n", opts.mode == MODE_READ ? "output" : "input");
             usage(argv[0]);
         }
+        opts.rem_argc = argc - optind;
+        opts.rem_argv = &argv[optind];
 
         // extra argument: ROM file
         opts.file = argv[optind];
@@ -296,18 +300,12 @@ int main(int argc, char **argv) {
     }
 
     // write ROM in the file to bank 1
-    else if (opts.mode == MODE_WRITE) {
+    else if (opts.mode == MODE_WRITE && space == TO_SRAM) {
         FILE *write_file = fopen(opts.file, "r");
-        if (write_file == NULL) {
-            if (space == TO_ROM)
-                err(1, "Can't open ROM file %s", opts.file);
-            else
-                err(1, "Can't open SAVE file %s", opts.file);
-        }
+        if (write_file == NULL)
+            err(1, "Can't open SAVE file %s", opts.file);
 
-        if (opts.verbose && space == TO_ROM)
-            printf("Writing ROM file %s\n", opts.file);
-        else if (opts.verbose)
+        if (opts.verbose)
             printf("Writing SAVE file %s\n", opts.file);
 
         while ((offset + blocksize) <= limits[space] && fread(buf, blocksize, 1, write_file) == 1) {
@@ -324,6 +322,8 @@ int main(int argc, char **argv) {
 
         if (opts.verbose)
             printf("Successfully wrote %u from %s\n", offset, opts.file);
+    } else if (opts.mode == MODE_WRITE && space == TO_ROM) {
+        cmd_write(opts.bank, opts.verbose, opts.rem_argc, opts.rem_argv);
     } else if (opts.mode == MODE_DELETE) {
         for (int i = optind; i < argc; i++) {
             unsigned char rawheader[HEADER_SIZE];
