@@ -109,7 +109,7 @@ cmd_write(int page, int verbose, int argc, char **argv) {
     struct image image;
     ems_size_t base, freesize;
     FILE *p;
-    char *tempfn;
+    char *tempfn, *menupath;
     char command[1024];
     int r;
 
@@ -143,6 +143,27 @@ cmd_write(int page, int verbose, int argc, char **argv) {
 
     freesize = PAGESIZE;
     list(page, &image);
+
+    // Delete the menu if it is the only ROM in the page
+    if (image.count == 1 &&
+        image.romlist[0].offset == 0 &&
+        strcmp(image.romlist[0].header.title, "GB16M           ") == 0) {
+            unsigned char zerobuf[32];
+
+            memset(zerobuf, 0, 32);
+            r = ems_write(TO_ROM, base + 0x110, zerobuf, 32);
+            if (r < 0) {
+                errx(1, "flash write error (address=%"PRIuEMSSIZE")",
+                        base + 0x110);
+            }
+            r = ems_write(TO_ROM, base + 0x130, zerobuf, 32);
+            if (r < 0) {
+                errx(1, "flash write error (address=%"PRIuEMSSIZE")",
+                        base + 0x130);
+            }
+            image.count--;
+    }
+
     for (int i = 0; i < image.count; i++) {
         fprintf(p, "\t%"PRIuEMSSIZE"\t%"PRIuEMSSIZE"\n",
             image.romlist[i].offset,
@@ -187,9 +208,34 @@ cmd_write(int page, int verbose, int argc, char **argv) {
         if ((header.romsize & (header.romsize - 1)) != 0)
             errx(1, "size of %s is not a power of two", argv[i]);
 
+        // For the first new ROM: add a menu if the page is empty excepted if
+        // the ROM is 4MB.
+        if (i == 0 && image.count == 0 && header.romsize < PAGESIZE) {
+            fprintf(p, "%d\t\t32768\n", argc);
+
+            switch (header.enhancements & (HEADER_ENH_GBC | HEADER_ENH_SGB)) {
+            case HEADER_ENH_GBC | HEADER_ENH_SGB:
+                menupath = MENUDIR"/menucs.gb";
+                break;
+            case HEADER_ENH_GBC:
+                menupath = MENUDIR"/menuc.gb";
+                break;
+            case HEADER_ENH_SGB:
+                menupath = MENUDIR"/menus.gb";
+                break;
+            default:
+                menupath = MENUDIR"/menu.gb";
+            }
+
+            freesize -= 32768;
+            if (access(menupath, R_OK) != 0)
+                err(1, "can't access the menu image (%s)", menupath);
+        }
+
         if (freesize < header.romsize)
             errx(1,"no space left on page");
         freesize -= header.romsize;
+
         fprintf(p, "%d\t\t%"PRIuEMSSIZE"\n", i, header.romsize);
     }
 
@@ -224,10 +270,15 @@ cmd_write(int page, int verbose, int argc, char **argv) {
         size = atol((token = strsep(&linep, "\t"))!=NULL?token:"");
         src = atol((token = strsep(&linep, "\t"))!=NULL?token:"");
 
-        //printf("%s\t%ld\t%ld\t%ld\n", cmd, dest, size, src);
+        // printf("%s\t%ld\t%ld\t%ld\n", cmd, dest, size, src);
 
         if (strcmp(cmd, "writef") == 0) {
-            r = flash_writef(base + dest, size, argv[src]);
+            char *path;
+            if (src < argc)
+                path = argv[src];
+            else
+                path = menupath;
+            r = flash_writef(base + dest, size, path);
         } else if (strcmp(cmd, "move") == 0) {
             r = flash_move(base + dest, size, base + src);
         } else if (strcmp(cmd, "read") == 0) {
