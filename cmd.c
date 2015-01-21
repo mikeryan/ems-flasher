@@ -72,36 +72,74 @@ list(int page, struct image *image) {
     } while (offset < PAGESIZE);
 }
 
+static void
+printenhancements(int enh) {
+    if (enh == 0) {
+        printf("None");
+    } else {
+        if (enh & HEADER_ENH_GBC)
+            printf("Color");
+        if (enh & HEADER_ENH_SGB)
+            printf(" + Super");
+    }
+}
+
 void
 cmd_title(int page) {
-        struct image image;
-        ems_size_t base;
+    struct image image;
+    ems_size_t base, free;
+    int menuenh, compat;
 
-        base = page * PAGESIZE;
+    base = page * PAGESIZE;
 
-        printf("Bank  Title             Size     Compatibility\n");
+    printf("Bank  Title             Size     Enhancements\n");
 
-        list(page, &image);
+    list(page, &image);
 
-        for (int i = 0; i < image.count; i++) {
-            struct rom *rl;
+    if (image.count > 0 && image.romlist[0].offset == 0 &&
+        strcmp(image.romlist[0].header.title, "GB16M           ") == 0) {
+            menuenh = image.romlist[0].header.enhancements;
+    } else {
+            menuenh = -1;
+    }
 
-            rl = &image.romlist[i];
-            printf("%3d   %s  %4"PRIuEMSSIZE" KB  ",
-                (int)((base + rl->offset) / 16384), rl->header.title,
-                rl->header.romsize >> 10);
+    compat = 1; // Assume ROMs have same enh. settings than the menu
+    free = PAGESIZE;
+    for (int i = 0; i < image.count; i++) {
+        struct rom *rl;
 
-            if (rl->header.gbc_only)
-                printf("Color only");
-            else {
-                printf("Classic");
-                if (rl->header.enhancements & HEADER_ENH_GBC)
-                    printf(" + Color");
-                if (rl->header.enhancements & HEADER_ENH_SGB)
-                    printf(" + Super");
-            }
+        rl = &image.romlist[i];
+        printf("%3d   %s  %4"PRIuEMSSIZE" KB  ",
+            (int)((base + rl->offset) / 16384), rl->header.title,
+            rl->header.romsize >> 10);
+
+        printenhancements(rl->header.enhancements);
+        if (rl->header.gbc_only)
+            printf(" (marked as for Game Boy Color only)");
+
+        putchar('\n');
+
+        if (rl->header.enhancements != menuenh)
+            compat = 0;
+
+        if (free < rl->header.romsize)
+            errx(1, "format error: sum of ROM sizes on flash exceeds the page size");
+        free -= rl->header.romsize;  
+    }
+
+    putchar('\n');
+    printf("Page: %d\n", page+1);
+    if (menuenh >= 0) {
+            printf("Page enhancements: ");
+            printenhancements(menuenh);
+            if (!compat)
+                printf(" (some ROMs have incompatible settings)");
             putchar('\n');
-        }
+    } else {
+        printf("Menu: no menu ROM found at bank 0\n");
+    }
+
+    printf("Free space: %4"PRIuEMSSIZE" KB\n", free >> 10);
 }
 
 void
