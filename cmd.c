@@ -142,6 +142,17 @@ cmd_title(int page) {
     printf("Free space: %4"PRIuEMSSIZE" KB\n", free >> 10);
 }
 
+static ems_size_t progresstotal, progressbytes;
+
+static void
+progress(ems_size_t bytes) {
+    progressbytes += bytes;
+    printf("\r %"PRIuEMSSIZE"%%", progressbytes*100/progresstotal);
+    fflush(stdout);
+    if (progressbytes == progresstotal)
+        putchar('\n');
+}
+
 void
 cmd_write(int page, int verbose, int argc, char **argv) {
     struct image image;
@@ -289,9 +300,19 @@ cmd_write(int page, int verbose, int argc, char **argv) {
     {
     char line[1024], *linep;
     FILE *f;
+
     f = fopen(tempfn, "r");
     if (f == NULL)
         err(1, "can't open temporary file");
+
+    for (int pass = 1; pass <= 2; pass++) {
+
+    if (pass == 1)
+        progresstotal = 0;
+    if (pass == 2) {
+        progressbytes = 0;
+        progress(0);
+    }
 
     while (fgets(line, sizeof(line), f) != NULL) {
         char *token;
@@ -312,19 +333,33 @@ cmd_write(int page, int verbose, int argc, char **argv) {
 
         if (strcmp(cmd, "writef") == 0) {
             char *path;
-            if (src < argc)
-                path = argv[src];
-            else
-                path = menupath;
-            r = flash_writef(base + dest, size, path);
+            if (pass == 1) {
+                progresstotal += size;
+            } else {
+                if (src < argc)
+                    path = argv[src];
+                else
+                    path = menupath;
+                r = flash_writef(base + dest, size, path, &progress);
+            }
         } else if (strcmp(cmd, "move") == 0) {
-            r = flash_move(base + dest, size, base + src);
+            if (pass == 1)
+                progresstotal += size*2;
+            else
+                r = flash_move(base + dest, size, base + src, &progress);
         } else if (strcmp(cmd, "read") == 0) {
-            r = flash_read(dest, size, base + src);
+            if (pass == 1)
+                progresstotal += size;
+            else
+                r = flash_read(dest, size, base + src, &progress);
         } else if (strcmp(cmd, "write") == 0) {
-            r = flash_write(base + dest, size, src);
+            if (pass == 1)
+                progresstotal += size;
+            else
+                r = flash_write(base + dest, size, src, &progress);
         } else if (strcmp(cmd, "erase") == 0) {
-            r = flash_erase(base + dest);
+            if (pass == 2)
+                r = flash_erase(base + dest, &progress);
         } else {
             errx(1, "internal error: bad update command (%s)", cmd);
         }
@@ -333,6 +368,9 @@ cmd_write(int page, int verbose, int argc, char **argv) {
     }
     if (ferror(f))
         err(1, "error reading temporary file");
+    if (pass == 1)
+        rewind(f);
+    }
 
     if (fclose(f) == EOF)
         err(1, "can't close temporary file");

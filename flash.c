@@ -11,7 +11,8 @@
 static unsigned char slot[NBSLOTS][ERASEBLOCKSIZE/2];
 
 int
-flash_writef(ems_size_t offset, ems_size_t size, char *path) {
+flash_writef(ems_size_t offset, ems_size_t size, char *path,
+  void (*progress)(ems_size_t)) {
     unsigned char blockbuf[WRITEBLOCKSIZE];
     FILE *f;
     ems_size_t remain;
@@ -38,6 +39,8 @@ flash_writef(ems_size_t offset, ems_size_t size, char *path) {
                 return 1;
         }
         offset += WRITEBLOCKSIZE;
+        if ((remain-WRITEBLOCKSIZE)%READBLOCKSIZE == 0)
+            progress(READBLOCKSIZE);
     }
 
     if (fclose(f) == EOF) {
@@ -48,7 +51,8 @@ flash_writef(ems_size_t offset, ems_size_t size, char *path) {
 }
 
 int
-flash_move(ems_size_t offset, ems_size_t size, ems_size_t origoffset) {
+flash_move(ems_size_t offset, ems_size_t size, ems_size_t origoffset,
+  void (*progress)(ems_size_t)) {
     unsigned char blockbuf[(READBLOCKSIZE < WRITEBLOCKSIZE)?WRITEBLOCKSIZE:READBLOCKSIZE];
     ems_size_t remain, remain_w, src, dest;
     int r;
@@ -62,12 +66,17 @@ flash_move(ems_size_t offset, ems_size_t size, ems_size_t origoffset) {
             return 1;
         }
 
-        for (remain_w = READBLOCKSIZE; remain_w > 0; remain_w -= WRITEBLOCKSIZE)
+        progress(READBLOCKSIZE);
+
+        for (remain_w = READBLOCKSIZE; remain_w > 0; remain_w -= WRITEBLOCKSIZE) {
             if ((r = ems_write(TO_ROM, dest, blockbuf,
                 WRITEBLOCKSIZE)) < 0) {
                     warnx("write error updating flash memory");
                     return 1;
             }
+        }
+
+        progress(READBLOCKSIZE);
 
         src += READBLOCKSIZE;
         dest += READBLOCKSIZE;
@@ -89,7 +98,8 @@ flash_move(ems_size_t offset, ems_size_t size, ems_size_t origoffset) {
 }
 
 int
-flash_read(int slotn, ems_size_t size, ems_size_t offset) {
+flash_read(int slotn, ems_size_t size, ems_size_t offset,
+  void (*progress)(ems_size_t)) {
     ems_size_t remain;
     unsigned char *block;
     int r;
@@ -104,13 +114,16 @@ flash_read(int slotn, ems_size_t size, ems_size_t offset) {
 
         block += READBLOCKSIZE;
         offset += READBLOCKSIZE;
+
+        progress(READBLOCKSIZE);
     }
 
     return 0;
 }
 
 int
-flash_write(ems_size_t offset, ems_size_t size, int slotn) {
+flash_write(ems_size_t offset, ems_size_t size, int slotn,
+  void (*progress)(ems_size_t)) {
     ems_size_t dest, remain;
     unsigned char *buf;
     int r;
@@ -126,13 +139,15 @@ flash_write(ems_size_t offset, ems_size_t size, int slotn) {
 
         buf += WRITEBLOCKSIZE;
         dest += WRITEBLOCKSIZE;
+        if ((remain - WRITEBLOCKSIZE) % READBLOCKSIZE == 0)
+            progress(READBLOCKSIZE);
     }
 
     return 0;
 }
 
 int
-flash_erase(ems_size_t offset) {
+flash_erase(ems_size_t offset, void (*progress)(ems_size_t)) {
     unsigned char blankbuf[32];
     int i, r;
 
