@@ -1,4 +1,4 @@
-/* for tempnam(), popen() and pclose(): */
+/* for tempnam() */
 #define _XOPEN_SOURCE
 
 /* for strsep(): */
@@ -11,14 +11,15 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <errno.h>
 #include <err.h>
 
 /* for open() and close(): */
 #include <fcntl.h>
 #include <unistd.h>
 
-/* for stat() */
 #include <sys/stat.h>
+#include <sys/wait.h>
 
 struct rom {
     ems_size_t offset;
@@ -157,38 +158,79 @@ void
 cmd_write(int page, int verbose, int argc, char **argv) {
     struct image image;
     ems_size_t base, freesize;
-    FILE *p;
     char *tempfn, *menupath;
-    char command[1024];
+    int pipe_in[2], pipe_out[2];
+    FILE *p;
+    pid_t pid;
+    int tempfd;
     int r;
-
-    // TODO: ignoring SIGPIPE (for popen)
 
     base = page * PAGESIZE;
 
-    // Create a temporary file and ensure it was created by this process.
-    // Then close it as it will be used by a subprocess.
-    {
-    int tempfd;
+    /* 
+     * Determine the update operations to add the new files to the image and put
+     * them in a temporary file.
+     *
+     * Plumbing:
+     * image + new files entries -> insert.awk -> update.awk -> update commands
+     * See insert.awk and update.awk for information about the in/out formats
+     */
 
-    tempfn = tempnam(NULL, NULL);
-    if (tempfn == NULL)
-        err(1, "tempnam");
-    if ((tempfd = open(tempfn, O_CREAT | O_EXCL, 0600)) == -1)
-        err(1, "error creating temporary file");
-    close(tempfd);
+    if (pipe(pipe_in) == -1)
+        err(1, "pipe");
+
+    if (pipe(pipe_out) == -1)
+        err(1, "pipe");
+
+    if ((pid = fork()) == -1)
+        err(1, "fork");
+
+    if (pid == 0) {
+        if (close(pipe_in[1]) == -1)
+            err(1, "close");
+        if (close(pipe_out[0]) == -1)
+            err(1, "close");
+        if (dup2(pipe_in[0], 0) == -1)
+            err(1, "dup2");
+        if (dup2(pipe_out[1], 1) == -1)
+            err(1, "dup2");
+        execl(AWK, "insert.awk", "-f", LIBEXECDIR"/insert.awk", (char*)NULL);
+        warn("insert.awk");
+        _exit(1);
     }
 
-    // TODO: escape single quotes in tempfn
-    r = snprintf(command, sizeof(command),
-        AWK " -f "LIBEXECDIR"/insert.awk |" \
-        AWK " -f "LIBEXECDIR"/update.awk > '%s'", tempfn);
-    if (r < 0 || r >= sizeof(command))
-        errx(1, "internal error: command too long");
+    if (close(pipe_in[0]) == -1)
+        err(1, "close");
+    if (close(pipe_out[1]) == -1)
+        err(1, "close");
 
-    p = popen(command, "w");
-    if (p == NULL)
-        err(1, "error starting subprocess");
+    if ((tempfn = tempnam(NULL, NULL)) == NULL)
+        err(1, "tempnam");
+    if ((tempfd = open(tempfn, O_CREAT | O_EXCL | O_RDWR, 0600)) == -1)
+        err(1, "error creating temporary file");
+    if (unlink(tempfn) == -1)
+        err(1, "unlink");
+
+    if ((pid = fork()) == -1)
+        err(1, "fork");
+
+    if (pid == 0) {
+        if (close(pipe_in[1]) == -1)
+            err(1, "close");
+        if (dup2(pipe_out[0], 0) == -1)
+            err(1, "dup2");
+        if (dup2(tempfd, 1) == -1)
+            err(1, "dup2");
+        execl(AWK, "update.awk", "-f", LIBEXECDIR"/update.awk", (char*)NULL);
+        warn("update.awk");
+        _exit(1);
+    }
+
+    if (close(pipe_out[0]) == -1)
+        err(1, "close");
+
+    if ((p = fdopen(pipe_in[1], "w")) == NULL)
+        err(1, "fdopen");
 
     freesize = PAGESIZE;
     list(page, &image);
@@ -291,17 +333,36 @@ cmd_write(int page, int verbose, int argc, char **argv) {
     if (ferror(p))
         errx(1, "error executing subprocess");
 
-    r = pclose(p);
-    if (r == -1)
-        err(1, "error executing subprocess");
-    else if (r != 0)
-        errx(1, "error executing subprocess (exit code = %d)", r);
+    if (fclose(p) == -1)
+        err(1, "fclose");
 
+    {
+    int status;
+    while (wait(&status) != -1);
+    if (errno != ECHILD)
+        err(1, "wait");   
+    if (!WIFEXITED(status) || WEXITSTATUS(status) != 0)
+        errx(1, "error executing subprocess");
+    }
+
+    /*
+     * Update the flash card
+     *
+     * The update operations are read twice from the temp file created by the
+     * previous step.
+     *
+     * First pass:
+     *   Compute the total bytes read and written by read/write/move commands.
+     *
+     * Second pass:
+     *   Flash the page. The flashing functions regularly call a callback
+     *   function with progression information.
+     */
     {
     char line[1024], *linep;
     FILE *f;
 
-    f = fopen(tempfn, "r");
+    f = fdopen(tempfd, "r");
     if (f == NULL)
         err(1, "can't open temporary file");
 
@@ -314,6 +375,7 @@ cmd_write(int page, int verbose, int argc, char **argv) {
         progress(0);
     }
 
+    rewind(f);
     while (fgets(line, sizeof(line), f) != NULL) {
         char *token;
         char *cmd;
@@ -331,8 +393,10 @@ cmd_write(int page, int verbose, int argc, char **argv) {
 
         // printf("%s\t%ld\t%ld\t%ld\n", cmd, dest, size, src);
 
+        r = 0;
         if (strcmp(cmd, "writef") == 0) {
             char *path;
+
             if (pass == 1) {
                 progresstotal += size;
             } else {
@@ -368,8 +432,6 @@ cmd_write(int page, int verbose, int argc, char **argv) {
     }
     if (ferror(f))
         err(1, "error reading temporary file");
-    if (pass == 1)
-        rewind(f);
     }
 
     if (fclose(f) == EOF)
