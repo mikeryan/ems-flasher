@@ -143,6 +143,61 @@ cmd_title(int page) {
     printf("Free space: %4"PRIuEMSSIZE" KB\n", free >> 10);
 }
 
+void
+cmd_delete(int page, int verbose, int argc, char **argv) {
+    for (int i = 0; i < argc; i++) {
+        unsigned char rawheader[HEADER_SIZE];
+        unsigned char zerobuf[32];
+        char *arg;
+        ems_size_t offset;
+        int r, bank;
+
+        memset(zerobuf, 0, 32);
+        arg = argv[i];
+        bank = atoi(arg); //TODO: proper bank number validation
+        offset = bank * 16384;
+
+        r = ems_read(FROM_ROM, offset, rawheader, HEADER_SIZE);
+        if (r < 0) {
+            errx(1, "flash read error (address=%"PRIuEMSSIZE")",
+                offset);
+        }
+
+        if (header_validate(rawheader) != 0) {
+            warnx("no ROM or invalid header at bank %d", bank);
+            continue;
+        }
+
+        r = ems_write(TO_ROM, offset + 0x110, zerobuf, 32);
+        if (r < 0) {
+            errx(1, "flash write error (address=%"PRIuEMSSIZE")",
+                    offset + 0x110);
+        }
+        r = ems_write(TO_ROM, offset + 0x130, zerobuf, 32);
+        if (r < 0) {
+            errx(1, "flash write error (address=%"PRIuEMSSIZE")",
+                    offset + 0x130);
+        }
+    }
+}
+
+void
+cmd_format(int page, int verbose) {
+    unsigned char zerobuf[32];
+    ems_size_t base, offset;
+    int r;
+
+    memset(zerobuf, 0, 32);
+    base = page * PAGESIZE;
+    for (offset = 0; offset <= PAGESIZE - 32768; offset += 32768) {
+        r = ems_write(TO_ROM, base + offset + 0x130, zerobuf, 32);
+        if (r < 0) {
+            errx(1, "flash write error (address=%"PRIuEMSSIZE")",
+                    base + offset + 0x130);
+        }
+    }
+}
+
 static ems_size_t progresstotal, progressbytes;
 
 static void

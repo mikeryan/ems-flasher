@@ -183,6 +183,10 @@ void get_options(int argc, char **argv) {
     if (opts.mode == 0)
         goto mode_error;
 
+    opts.rem_argc = argc - optind;
+    if (optind < argc)
+        opts.rem_argv = &argv[optind];
+
     if (opts.mode == MODE_FORMAT || opts.mode == MODE_TITLE) {
         if (optind < argc) {
             printf("Error: no argument expected\n");
@@ -199,8 +203,6 @@ void get_options(int argc, char **argv) {
             printf("Error: you must provide an %s filename\n", opts.mode == MODE_READ ? "output" : "input");
             usage(argv[0]);
         }
-        opts.rem_argc = argc - optind;
-        opts.rem_argv = &argv[optind];
 
         // extra argument: ROM file
         opts.file = argv[optind];
@@ -325,51 +327,9 @@ int main(int argc, char **argv) {
     } else if (opts.mode == MODE_WRITE && space == TO_ROM) {
         cmd_write(opts.bank, opts.verbose, opts.rem_argc, opts.rem_argv);
     } else if (opts.mode == MODE_DELETE) {
-        for (int i = optind; i < argc; i++) {
-            unsigned char rawheader[HEADER_SIZE];
-            unsigned char zerobuf[32];
-            char *arg;
-            int r, bank;
-
-            memset(zerobuf, 0, 32);
-            arg = argv[i];
-            bank = atoi(arg); //TODO: proper bank number validation
-            offset = bank * 16384;
-
-            r = ems_read(FROM_ROM, offset, rawheader, HEADER_SIZE);
-            if (r < 0) {
-                errx(1, "flash read error (address=%"PRIuEMSSIZE")",
-                    offset);
-            }
-
-            if (header_validate(rawheader) != 0) {
-                warnx("no ROM or invalid header at bank %d", bank);
-                continue;
-            }
-
-            r = ems_write(TO_ROM, offset + 0x110, zerobuf, 32);
-            if (r < 0) {
-                errx(1, "flash write error (address=%"PRIuEMSSIZE")",
-                        offset + 0x110);
-            }
-            r = ems_write(TO_ROM, offset + 0x130, zerobuf, 32);
-            if (r < 0) {
-                errx(1, "flash write error (address=%"PRIuEMSSIZE")",
-                        offset + 0x130);
-            }
-        }
+        cmd_delete(opts.bank, opts.verbose, opts.rem_argc, opts.rem_argv);
     } else if (opts.mode == MODE_FORMAT) {
-        unsigned char zerobuf[32];
-
-        memset(zerobuf, 0, 32);
-        base = opts.bank * PAGESIZE;
-        for (offset = 0; offset <= PAGESIZE - 32768; offset += 32768) {
-            r = ems_write(TO_ROM, base + offset + 0x130, zerobuf, 32);
-            if (r < 0) {
-                errx(1, "flash write error (address=%"PRIuEMSSIZE")",
-                        base + offset + 0x130);
-            }
-        }
+        cmd_format(opts.bank, opts.verbose);
     }
     // read the ROM header
     else if (opts.mode == MODE_TITLE) {
