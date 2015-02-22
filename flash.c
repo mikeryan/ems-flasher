@@ -161,3 +161,22 @@ flash_erase(ems_size_t offset, void (*progress)(ems_size_t)) {
 
     return 0;
 }
+
+int
+flash_delete(ems_size_t offset, int blocks) {
+    unsigned char zerobuf[32];
+    int r;
+
+    memset(zerobuf, 0, 32);
+
+    while (blocks--) {
+        r = ems_write(TO_ROM, offset + 0x130 - blocks*32, zerobuf, 32);
+        if (r < 0) {
+            warnx("flash write error (address=%"PRIuEMSSIZE")",
+                    offset + 0x130 - blocks*32);
+            return 1;
+        }
+    }
+
+    return 0;
+}

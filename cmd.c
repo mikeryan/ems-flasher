@@ -147,12 +147,10 @@ void
 cmd_delete(int page, int verbose, int argc, char **argv) {
     for (int i = 0; i < argc; i++) {
         unsigned char rawheader[HEADER_SIZE];
-        unsigned char zerobuf[32];
         char *arg;
         ems_size_t offset;
         int r, bank;
 
-        memset(zerobuf, 0, 32);
         arg = argv[i];
         bank = atoi(arg); //TODO: proper bank number validation
         offset = bank * 16384;
@@ -168,34 +166,19 @@ cmd_delete(int page, int verbose, int argc, char **argv) {
             continue;
         }
 
-        r = ems_write(TO_ROM, offset + 0x110, zerobuf, 32);
-        if (r < 0) {
-            errx(1, "flash write error (address=%"PRIuEMSSIZE")",
-                    offset + 0x110);
-        }
-        r = ems_write(TO_ROM, offset + 0x130, zerobuf, 32);
-        if (r < 0) {
-            errx(1, "flash write error (address=%"PRIuEMSSIZE")",
-                    offset + 0x130);
-        }
+        if (flash_delete(offset, 2) != 0)
+            exit(1);
     }
 }
 
 void
 cmd_format(int page, int verbose) {
-    unsigned char zerobuf[32];
     ems_size_t base, offset;
-    int r;
 
-    memset(zerobuf, 0, 32);
     base = page * PAGESIZE;
-    for (offset = 0; offset <= PAGESIZE - 32768; offset += 32768) {
-        r = ems_write(TO_ROM, base + offset + 0x130, zerobuf, 32);
-        if (r < 0) {
-            errx(1, "flash write error (address=%"PRIuEMSSIZE")",
-                    base + offset + 0x130);
-        }
-    }
+    for (offset = 0; offset <= PAGESIZE - 32768; offset += 32768)
+        if (flash_delete(base + offset, 1) != 0)
+            exit(1);
 }
 
 static ems_size_t progresstotal, progressbytes;
@@ -294,19 +277,8 @@ cmd_write(int page, int verbose, int argc, char **argv) {
     if (image.count == 1 &&
         image.romlist[0].offset == 0 &&
         strcmp(image.romlist[0].header.title, "GB16M           ") == 0) {
-            unsigned char zerobuf[32];
-
-            memset(zerobuf, 0, 32);
-            r = ems_write(TO_ROM, base + 0x110, zerobuf, 32);
-            if (r < 0) {
-                errx(1, "flash write error (address=%"PRIuEMSSIZE")",
-                        base + 0x110);
-            }
-            r = ems_write(TO_ROM, base + 0x130, zerobuf, 32);
-            if (r < 0) {
-                errx(1, "flash write error (address=%"PRIuEMSSIZE")",
-                        base + 0x130);
-            }
+            if (flash_delete(base, 2) != 0)
+                exit(1);
             image.count--;
     }
 
