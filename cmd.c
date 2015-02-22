@@ -88,10 +88,8 @@ printenhancements(int enh) {
 void
 cmd_title(int page) {
     struct image image;
-    ems_size_t base, free;
+    ems_size_t free;
     int menuenh, compat;
-
-    base = page * PAGESIZE;
 
     printf("Bank  Title             Size     Enhancements\n");
 
@@ -111,7 +109,7 @@ cmd_title(int page) {
 
         rl = &image.romlist[i];
         printf("%3d   %s  %4"PRIuEMSSIZE" KB  ",
-            (int)((base + rl->offset) / 16384), rl->header.title,
+            (int)((rl->offset) / 16384), rl->header.title,
             rl->header.romsize >> 10);
 
         printenhancements(rl->header.enhancements);
@@ -148,14 +146,16 @@ cmd_delete(int page, int verbose, int argc, char **argv) {
     for (int i = 0; i < argc; i++) {
         unsigned char rawheader[HEADER_SIZE];
         char *arg;
-        ems_size_t offset;
+        ems_size_t offset, base;
         int r, bank;
+
+        base = page * PAGESIZE;
 
         arg = argv[i];
         bank = atoi(arg); //TODO: proper bank number validation
         offset = bank * 16384;
 
-        r = ems_read(FROM_ROM, offset, rawheader, HEADER_SIZE);
+        r = ems_read(FROM_ROM, base + offset, rawheader, HEADER_SIZE);
         if (r < 0) {
             errx(1, "flash read error (address=%"PRIuEMSSIZE")",
                 offset);
@@ -166,7 +166,7 @@ cmd_delete(int page, int verbose, int argc, char **argv) {
             continue;
         }
 
-        if (flash_delete(offset, 2) != 0)
+        if (flash_delete(base + offset, 2) != 0)
             exit(1);
     }
 }
