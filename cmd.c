@@ -1,4 +1,4 @@
-/* for tempnam() */
+/* for tempnam() and sigaction() */
 #define _XOPEN_SOURCE
 
 /* for strsep(): */
@@ -10,6 +10,7 @@
 
 #include <stdio.h>
 #include <stdlib.h>
+#include <signal.h>
 #include <string.h>
 #include <errno.h>
 #include <err.h>
@@ -192,6 +193,20 @@ progress(ems_size_t bytes) {
         putchar('\n');
 }
 
+volatile sig_atomic_t int_state = 0;
+
+static void
+int_handler(int s) {
+    static const char msg[] = "Termination signal received.\n"; 
+    int_state = 1;
+    write(2, msg, strlen(msg));
+}
+
+static int
+checkint() {
+    return int_state;
+}
+
 void
 cmd_write(int page, int verbose, int argc, char **argv) {
     struct image image;
@@ -202,6 +217,7 @@ cmd_write(int page, int verbose, int argc, char **argv) {
     pid_t pid;
     int tempfd;
     int r;
+    struct sigaction sa, oldsigpipe;
 
     base = page * PAGESIZE;
 
@@ -213,6 +229,12 @@ cmd_write(int page, int verbose, int argc, char **argv) {
      * image + new files entries -> insert.awk -> update.awk -> update commands
      * See insert.awk and update.awk for information about the in/out formats
      */
+
+    memset(&sa, 0, sizeof(sa));
+    sigemptyset(&sa.sa_mask);
+    sa.sa_handler = SIG_IGN;
+    if (sigaction(SIGPIPE, &sa, &oldsigpipe) == -1)
+        err(1, "sigaction");
 
     if (pipe(pipe_in) == -1)
         err(1, "pipe");
@@ -372,6 +394,9 @@ cmd_write(int page, int verbose, int argc, char **argv) {
         errx(1, "error executing subprocess");
     }
 
+    if (sigaction(SIGPIPE, &oldsigpipe, NULL) == -1)
+        err(1, "sigaction");
+
     /*
      * Update the flash card
      *
@@ -398,9 +423,35 @@ cmd_write(int page, int verbose, int argc, char **argv) {
     if (pass == 1)
         progresstotal = 0;
     if (pass == 2) {
+        struct sigaction sa, oldsa;
+
+        memset(&sa, 0, sizeof(sa));
+        sigemptyset(&sa.sa_mask);
+        sa.sa_handler = &int_handler;
+        sa.sa_flags = SA_RESTART;
+
+        sigaction(SIGHUP, NULL, &oldsa);
+        if (oldsa.sa_handler != SIG_IGN)
+            sigaction(SIGHUP, &sa, NULL);
+
+        sigaction(SIGINT, NULL, &oldsa);
+        if (oldsa.sa_handler != SIG_IGN)
+            sigaction(SIGINT, &sa, NULL);
+
+        sigaction(SIGTERM, NULL, &oldsa);
+        if (oldsa.sa_handler != SIG_IGN)
+            sigaction(SIGTERM, &sa, NULL);
+
         progressbytes = 0;
         progress(0);
+        flash_init(progress, checkint);
     }
+
+    {
+    enum {
+        RECOVERY_SKIP = 1,
+        RECOVERY_FLASH
+    } recovery = 0;
 
     rewind(f);
     while (fgets(line, sizeof(line), f) != NULL) {
@@ -420,6 +471,15 @@ cmd_write(int page, int verbose, int argc, char **argv) {
 
         // printf("%s\t%ld\t%ld\t%ld\n", cmd, dest, size, src);
 
+        if (recovery) {
+            if (strcmp(cmd, "read") == 0 ||
+                (base + dest)/ERASEBLOCKSIZE != flash_lastofs/ERASEBLOCKSIZE) {
+                    exit(1);
+            }
+            if (strcmp(cmd, "write") != 0)
+                continue;
+        }
+
         r = 0;
         if (strcmp(cmd, "writef") == 0) {
             char *path;
@@ -431,31 +491,41 @@ cmd_write(int page, int verbose, int argc, char **argv) {
                     path = argv[src];
                 else
                     path = menupath;
-                r = flash_writef(base + dest, size, path, &progress);
+                r = flash_writef(base + dest, size, path);
             }
         } else if (strcmp(cmd, "move") == 0) {
             if (pass == 1)
                 progresstotal += size*2;
             else
-                r = flash_move(base + dest, size, base + src, &progress);
+                r = flash_move(base + dest, size, base + src);
         } else if (strcmp(cmd, "read") == 0) {
             if (pass == 1)
                 progresstotal += size;
             else
-                r = flash_read(dest, size, base + src, &progress);
+                r = flash_read(dest, size, base + src);
         } else if (strcmp(cmd, "write") == 0) {
             if (pass == 1)
                 progresstotal += size;
-            else
-                r = flash_write(base + dest, size, src, &progress);
+            else {
+                if (recovery != RECOVERY_SKIP)
+                    r = flash_write(base + dest, size, src);
+                //TODO: print lost ROMs on error or RECOVERY_SKIP
+            }
         } else if (strcmp(cmd, "erase") == 0) {
             if (pass == 2)
-                r = flash_erase(base + dest, &progress);
+                r = flash_erase(base + dest);
         } else {
             errx(1, "internal error: bad update command (%s)", cmd);
         }
-        if (r != 0)
-            exit(1);
+        if (r) {
+            if (r == FLASH_EUSB)
+                recovery = RECOVERY_SKIP;
+            else
+                recovery = RECOVERY_FLASH;
+        }
+    }
+    if (recovery)
+        exit(1);
     }
     if (ferror(f))
         err(1, "error reading temporary file");
@@ -464,4 +534,7 @@ cmd_write(int page, int verbose, int argc, char **argv) {
     if (fclose(f) == EOF)
         err(1, "can't close temporary file");
     }
+
+    /* Note: should restore signal handlers but not needed as the program
+       exits directly */
 }
