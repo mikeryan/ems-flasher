@@ -207,6 +207,22 @@ checkint() {
     return int_state;
 }
 
+struct romfile {
+    struct header header;
+    char *path;
+};
+
+int
+romfiles_compar_size_desc(const void *pa, const void *pb) {
+    ems_size_t a = ((struct romfile *)pa)->header.romsize;
+    ems_size_t b = ((struct romfile *)pb)->header.romsize;
+    if (b < a)
+        return -1;
+    if (b > a)
+        return 1;
+    return 0;
+}
+
 void
 cmd_write(int page, int verbose, int argc, char **argv) {
     struct image image;
@@ -218,7 +234,10 @@ cmd_write(int page, int verbose, int argc, char **argv) {
     int tempfd;
     int r;
     struct sigaction sa, oldsigpipe;
+    struct romfile *romfiles;
 
+    menupath = NULL;
+    romfiles = NULL;
     base = page * PAGESIZE;
 
     /* 
@@ -313,46 +332,63 @@ cmd_write(int page, int verbose, int argc, char **argv) {
         freesize -= image.romlist[i].header.romsize;
     }
 
-    // TODO: files should be sorted by size (descending order)
+    if (argc > 0)
+        if ((romfiles = malloc(argc*sizeof(*romfiles))) == NULL)
+            err(1, "malloc");
+
     for (int i = 0; i < argc; i++) {
         struct header header;
         unsigned char buf[HEADER_SIZE];
+        char *path;
         FILE *f;
 
-        f = fopen(argv[i], "rb");
+        path = argv[i];
+
+        f = fopen(path, "rb");
         if (f == NULL)
-            err(1, "can't open %s", argv[i]);
+            err(1, "can't open %s", path);
         if (fread(buf, HEADER_SIZE, 1, f) < 1) {
             if (ferror(f))
-                err(1, "error reading %s", argv[i]);
+                err(1, "error reading %s", path);
             else
-                errx(1, "invalid header for %s", argv[i]);
+                errx(1, "invalid header for %s", path);
         }
         if (fclose(f) == EOF)
-            err(1, "error closing %s", argv[i]);
+            err(1, "error closing %s", path);
         if (header_validate(buf) != 0)
-            errx(1, "invalid header for %s", argv[i]);
+            errx(1, "invalid header for %s", path);
         header_decode(&header, buf);
 
         // Check ROM size validity
         if (header.romsize == 0)
-            errx(1, "invalid romsize code in header of %s", argv[i]);
+            errx(1, "invalid romsize code in header of %s", path);
         {
         struct stat buf;
-        if (stat(argv[i], &buf) == -1)
-            err(1, "can't stat %s", argv[i]);
+        if (stat(path, &buf) == -1)
+            err(1, "can't stat %s", path);
+
         if (buf.st_size != header.romsize)
             errx(1, "ROM size declared in header of %s doesn't match file size",
-                argv[i]);
+                path);
         }
         if ((header.romsize & (header.romsize - 1)) != 0)
-            errx(1, "size of %s is not a power of two", argv[i]);
+            errx(1, "size of %s is not a power of two", path);
+
+        // Check for duplicate titles
+        for (int j = 0; j < image.count; j++) {
+            if (strcmp(header.title, image.romlist[j].header.title) == 0)
+                errx(1, "%s: duplicate title with a ROM on cartridge: %s", path,
+                    header.title);
+        }
+        for (int j = 0; j < i; j++) {
+            if (strcmp(header.title, romfiles[j].header.title) == 0)
+                errx(1, "%s: duplicate title with %s: %s", path,
+                    romfiles[j].path, header.title);
+        }
 
         // For the first new ROM: add a menu if the page is empty excepted if
         // the ROM is 4MB.
         if (i == 0 && image.count == 0 && header.romsize < PAGESIZE) {
-            fprintf(p, "%d\t\t32768\n", argc);
-
             switch (header.enhancements & (HEADER_ENH_GBC | HEADER_ENH_SGB)) {
             case HEADER_ENH_GBC | HEADER_ENH_SGB:
                 menupath = MENUDIR"/menucs.gb";
@@ -376,7 +412,17 @@ cmd_write(int page, int verbose, int argc, char **argv) {
             errx(1,"no space left on page");
         freesize -= header.romsize;
 
-        fprintf(p, "%d\t\t%"PRIuEMSSIZE"\n", i, header.romsize);
+        romfiles[i].header = header;
+        romfiles[i].path = path;
+    }
+
+    // sort the files by size in descending order
+    qsort(romfiles, argc, sizeof(*romfiles), romfiles_compar_size_desc);
+
+    if (menupath)
+        fprintf(p, "%d\t\t32768\n", argc);
+    for (int i = 0; i < argc; i++) {
+        fprintf(p, "%d\t\t%"PRIuEMSSIZE"\n", i, romfiles[i].header.romsize);
     }
 
     if (ferror(p))
@@ -488,7 +534,7 @@ cmd_write(int page, int verbose, int argc, char **argv) {
                 progresstotal += size;
             } else {
                 if (src < argc)
-                    path = argv[src];
+                    path = romfiles[src].path;
                 else
                     path = menupath;
                 r = flash_writef(base + dest, size, path);
@@ -537,4 +583,7 @@ cmd_write(int page, int verbose, int argc, char **argv) {
 
     /* Note: should restore signal handlers but not needed as the program
        exits directly */
+
+    if (romfiles != NULL)
+        free(romfiles);
 }
