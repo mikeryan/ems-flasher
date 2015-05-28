@@ -12,6 +12,7 @@
 #include <stdlib.h>
 #include <signal.h>
 #include <string.h>
+#include <time.h>
 #include <errno.h>
 #include <err.h>
 
@@ -210,6 +211,7 @@ checkint() {
 struct romfile {
     struct header header;
     char *path;
+    time_t ctime;
 };
 
 int
@@ -339,6 +341,7 @@ cmd_write(int page, int verbose, int argc, char **argv) {
     for (int i = 0; i < argc; i++) {
         struct header header;
         unsigned char buf[HEADER_SIZE];
+        time_t ctime;
         char *path;
         FILE *f;
 
@@ -366,6 +369,8 @@ cmd_write(int page, int verbose, int argc, char **argv) {
         struct stat buf;
         if (stat(path, &buf) == -1)
             err(1, "can't stat %s", path);
+
+        ctime = buf.st_ctime;
 
         if (buf.st_size != header.romsize)
             errx(1, "ROM size declared in header of %s doesn't match file size",
@@ -414,6 +419,7 @@ cmd_write(int page, int verbose, int argc, char **argv) {
 
         romfiles[i].header = header;
         romfiles[i].path = path;
+        romfiles[i].ctime = ctime;
     }
 
     // sort the files by size in descending order
@@ -533,10 +539,24 @@ cmd_write(int page, int verbose, int argc, char **argv) {
             if (pass == 1) {
                 progresstotal += size;
             } else {
-                if (src < argc)
+                if (src < argc) {
+                    struct stat buf;
+
                     path = romfiles[src].path;
-                else
+                    if (stat(path, &buf) == -1) {
+                        warn("can't stat %s", path);
+                        r = FLASH_EFILE;
+                        goto error;
+                    }
+                    if (difftime(buf.st_ctime, romfiles[src].ctime) != 0) {
+                        warnx("%s has changed", path);
+                        r = FLASH_EFILE;
+                        goto error;
+                    }
+                } else {
                     path = menupath;
+                }
+
                 r = flash_writef(base + dest, size, path);
             }
         } else if (strcmp(cmd, "move") == 0) {
@@ -563,6 +583,7 @@ cmd_write(int page, int verbose, int argc, char **argv) {
         } else {
             errx(1, "internal error: bad update command (%s)", cmd);
         }
+    error:
         if (r) {
             if (r == FLASH_EUSB)
                 recovery = RECOVERY_SKIP;
