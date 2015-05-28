@@ -30,18 +30,18 @@ flash_init(void (*progress_cb)(ems_size_t), int (*checkint_cb)(void)) {
 
 int
 flash_writef(ems_size_t offset, ems_size_t size, char *path) {
-    unsigned char blockbuf[WRITEBLOCKSIZE];
+    unsigned char blockbuf[WRITEBLOCKSIZE*2];
     FILE *f;
     ems_size_t remain;
-    int r;
+    int i, r;
 
     if ((f = fopen(path, "rb")) == NULL) {
         warn("can't open %s", path);
         return FLASH_EFILE;
     }
 
-    for (remain = size; remain > 0; remain -= WRITEBLOCKSIZE) {
-        if (fread(blockbuf, 1, WRITEBLOCKSIZE, f) < WRITEBLOCKSIZE) {
+    for (remain = size; remain > 0; remain -= WRITEBLOCKSIZE*2) {
+        if (fread(blockbuf, 1, WRITEBLOCKSIZE*2, f) < WRITEBLOCKSIZE*2) {
             if (ferror(f)) {
                 warn("error reading %s", path);
                 fclose(f);
@@ -49,17 +49,19 @@ flash_writef(ems_size_t offset, ems_size_t size, char *path) {
             } else break;
         }
 
-        if (CHECKINT && (remain/WRITEBLOCKSIZE)%2 == 0)
+        if (CHECKINT)
             return FLASH_EINTR;
 
-        if ((r = ems_write(TO_ROM, flash_lastofs = offset, blockbuf,
-            WRITEBLOCKSIZE)) < 0) {
-                warnx("write error flashing %s", path);
-                fclose(f);
-                return 1;
+        for (i = 0; i < 2; i++) {
+            if ((r = ems_write(TO_ROM, flash_lastofs = offset,
+                blockbuf + i*WRITEBLOCKSIZE, WRITEBLOCKSIZE)) < 0) {
+                    warnx("write error flashing %s", path);
+                    fclose(f);
+                    return FLASH_EUSB;
+            }
+            offset += WRITEBLOCKSIZE;
         }
-        offset += WRITEBLOCKSIZE;
-        if ((remain-WRITEBLOCKSIZE)%READBLOCKSIZE == 0)
+        if ((remain-WRITEBLOCKSIZE*2)%READBLOCKSIZE == 0)
             PROGRESS(READBLOCKSIZE);
     }
 
