@@ -147,6 +147,7 @@ void
 cmd_delete(int page, int verbose, int argc, char **argv) {
     for (int i = 0; i < argc; i++) {
         unsigned char rawheader[HEADER_SIZE];
+        struct header header;
         char *arg;
         ems_size_t offset, base;
         int r, bank;
@@ -168,6 +169,11 @@ cmd_delete(int page, int verbose, int argc, char **argv) {
             continue;
         }
 
+        header_decode(&header, rawheader);
+
+        if (verbose)
+            printf("Deleting ROM at bank %d: %s...\n", bank, header.title);
+
         if (flash_delete(base + offset, 2) != 0)
             exit(1);
     }
@@ -176,6 +182,9 @@ cmd_delete(int page, int verbose, int argc, char **argv) {
 void
 cmd_format(int page, int verbose) {
     ems_size_t base, offset;
+
+    if (verbose)
+        printf("Formating...\n");
 
     base = page * PAGESIZE;
     for (offset = 0; offset <= PAGESIZE - 32768; offset += 32768)
@@ -188,10 +197,8 @@ static ems_size_t progresstotal, progressbytes;
 static void
 progress(ems_size_t bytes) {
     progressbytes += bytes;
-    printf("\r %"PRIuEMSSIZE"%%", progressbytes*100/progresstotal);
+    printf(" %3"PRIuEMSSIZE"%%\r", progressbytes*100/progresstotal);
     fflush(stdout);
-    if (progressbytes == progresstotal)
-        putchar('\n');
 }
 
 volatile sig_atomic_t int_state = 0;
@@ -326,7 +333,8 @@ cmd_write(int page, int verbose, int argc, char **argv) {
     }
 
     for (int i = 0; i < image.count; i++) {
-        fprintf(p, "\t%"PRIuEMSSIZE"\t%"PRIuEMSSIZE"\n",
+        fprintf(p, "%d\t%"PRIuEMSSIZE"\t%"PRIuEMSSIZE"\n",
+            i,
             image.romlist[i].offset,
             image.romlist[i].header.romsize);
         if (freesize < image.romlist[i].header.romsize)
@@ -495,8 +503,7 @@ cmd_write(int page, int verbose, int argc, char **argv) {
             sigaction(SIGTERM, &sa, NULL);
 
         progressbytes = 0;
-        progress(0);
-        flash_init(progress, checkint);
+        flash_init(verbose?progress:NULL, checkint);
     }
 
     {
@@ -504,24 +511,25 @@ cmd_write(int page, int verbose, int argc, char **argv) {
         RECOVERY_SKIP = 1,
         RECOVERY_FLASH
     } recovery = 0;
+    int indefrag = 0;
 
     rewind(f);
     while (fgets(line, sizeof(line), f) != NULL) {
         char *token;
         char *cmd;
-        long dest, size, src;
+        long id, dest, size, src;
 
         linep = line;
 
         cmd = strsep(&linep, "\t");
         if (cmd == NULL)
             errx(1, "internal error: bad update command (empty)");
-        strsep(&linep, "\t"); // skip id
+        id = atol((token = strsep(&linep, "\t"))!=NULL?token:"");
         dest = atol((token = strsep(&linep, "\t"))!=NULL?token:"");
         size = atol((token = strsep(&linep, "\t"))!=NULL?token:"");
         src = atol((token = strsep(&linep, "\t"))!=NULL?token:"");
 
-        // printf("%s\t%ld\t%ld\t%ld\n", cmd, dest, size, src);
+        // printf("%s\t%ld\t%ld\t%ld\t%ld\n", cmd, id, dest, size, src);
 
         if (recovery) {
             if (strcmp(cmd, "read") == 0 ||
@@ -557,25 +565,59 @@ cmd_write(int page, int verbose, int argc, char **argv) {
                     path = menupath;
                 }
 
+                if (verbose) {
+                    indefrag = 0;
+                    printf("Writing %s (%s)...\n", path,
+                        romfiles[src].header.title);
+                }
                 r = flash_writef(base + dest, size, path);
             }
         } else if (strcmp(cmd, "move") == 0) {
-            if (pass == 1)
+            if (pass == 1) {
                 progresstotal += size*2;
-            else
+            } else {
+                if (verbose && !indefrag) {
+                    printf("Defragmenting...\n");
+                    indefrag = 1;
+                }
                 r = flash_move(base + dest, size, base + src);
+            }
         } else if (strcmp(cmd, "read") == 0) {
-            if (pass == 1)
+            if (pass == 1) {
                 progresstotal += size;
-            else
+            } else {
+                if (verbose && !indefrag) {
+                    printf("Defragmenting...\n");
+                    indefrag = 1;
+                }
                 r = flash_read(dest, size, base + src);
+            }
         } else if (strcmp(cmd, "write") == 0) {
-            if (pass == 1)
+            if (pass == 1) {
                 progresstotal += size;
-            else {
-                if (recovery != RECOVERY_SKIP)
+            } else {
+                if (recovery != RECOVERY_SKIP) {
+                    if (verbose) {
+                        if (!recovery) {
+                            if (!indefrag) {
+                                printf("Defragmenting...\n");
+                                indefrag = 1;
+                            }
+                        } else {
+                            printf("Recovering %s...\n",
+                                image.romlist[id].header.title);
+                        }
+                    }
                     r = flash_write(base + dest, size, src);
-                //TODO: print lost ROMs on error or RECOVERY_SKIP
+                }
+                if (r || recovery == RECOVERY_SKIP) {
+                    if (flash_lastofs/ERASEBLOCKSIZE == (base+dest)/ERASEBLOCKSIZE)
+                        warnx("%slost %s at bank %d",
+                            r == FLASH_EUSB &&
+                                flash_lastofs%ERASEBLOCKSIZE==0?"possibly ":"",
+                            image.romlist[id].header.title,
+                            image.romlist[id].offset/16384);
+                }
             }
         } else if (strcmp(cmd, "erase") == 0) {
             if (pass == 2)
@@ -583,8 +625,13 @@ cmd_write(int page, int verbose, int argc, char **argv) {
         } else {
             errx(1, "internal error: bad update command (%s)", cmd);
         }
+        if (pass == 2 && verbose)
+            putchar('\n');
     error:
         if (r) {
+            if (r == FLASH_EINTR)
+                warnx("operation interrupted");
+
             if (r == FLASH_EUSB)
                 recovery = RECOVERY_SKIP;
             else
