@@ -56,11 +56,17 @@ header_validate(unsigned char *header) {
  */
 void
 header_decode(struct header *header, unsigned char *raw) {
-    for (int i = 0; i < HEADER_TITLE_SIZE; i++) {
+    int i;
+
+    for (i = 0; i < HEADER_TITLE_SIZE; i++) {
         int c = raw[HEADER_TITLE + i];
         header->title[i] = (c >= 32 && c <= 95)?c:32;
     }
-    header->title[HEADER_TITLE_SIZE] = '\0';
+
+    for (i = HEADER_TITLE_SIZE-1; i >= 0; i--)
+        if (header->title[i] != 32)
+            break;
+    header->title[i+1] = '\0';
 
     switch (raw[HEADER_ROMSIZE]) {
         case 0:

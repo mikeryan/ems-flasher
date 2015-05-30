@@ -98,7 +98,7 @@ cmd_title(int page) {
     list(page, &image);
 
     if (image.count > 0 && image.romlist[0].offset == 0 &&
-        strcmp(image.romlist[0].header.title, "GB16M           ") == 0) {
+        strcmp(image.romlist[0].header.title, "GB16M") == 0) {
             menuenh = image.romlist[0].header.enhancements;
     } else {
             menuenh = -1;
@@ -110,8 +110,8 @@ cmd_title(int page) {
         struct rom *rl;
 
         rl = &image.romlist[i];
-        printf("%3d   %s  %4"PRIuEMSSIZE" KB  ",
-            (int)((rl->offset) / 16384), rl->header.title,
+        printf("%3d   %-*s  %4"PRIuEMSSIZE" KB  ",
+            (int)((rl->offset) / 16384), HEADER_TITLE_SIZE, rl->header.title,
             rl->header.romsize >> 10);
 
         printenhancements(rl->header.enhancements);
@@ -326,7 +326,7 @@ cmd_write(int page, int verbose, int argc, char **argv) {
     // Delete the menu if it is the only ROM in the page
     if (image.count == 1 &&
         image.romlist[0].offset == 0 &&
-        strcmp(image.romlist[0].header.title, "GB16M           ") == 0) {
+        strcmp(image.romlist[0].header.title, "GB16M") == 0) {
             if (flash_delete(base, 2) != 0)
                 exit(1);
             image.count--;
