@@ -55,8 +55,10 @@ flash_writef(ems_size_t offset, ems_size_t size, char *path) {
             continue;
         }
 
-        if (CHECKINT)
+        if (CHECKINT) {
+            warnx("operation interrupted");
             return FLASH_EINTR;
+        }
 
         for (i = 0; i < 2; i++) {
             if ((r = ems_write(TO_ROM,
@@ -103,8 +105,10 @@ flash_move(ems_size_t offset, ems_size_t size, ems_size_t origoffset) {
     flipflop = 0;
 
     for (remain = size; remain > 0; remain -= READBLOCKSIZE) {
-        if (CHECKINT)
+        if (CHECKINT) {
+            warnx("operation interrupted");
             return FLASH_EINTR;
+        }
 
         if ((r = ems_read(FROM_ROM, src, blockbuf, READBLOCKSIZE)) < 0) {
             warnx("read error updating flash memory");
@@ -119,8 +123,10 @@ flash_move(ems_size_t offset, ems_size_t size, ems_size_t origoffset) {
                 continue;
             }
 
-            if ((flipflop = 1-flipflop) && CHECKINT)
+            if ((flipflop = 1-flipflop) && CHECKINT) {
+                warnx("operation interrupted");
                 return FLASH_EINTR;
+            }
 
             if ((r = ems_write(TO_ROM, flash_lastofs = dest+blockofs,
                 blockbuf+blockofs, WRITEBLOCKSIZE)) < 0) {
@@ -156,8 +162,10 @@ flash_read(int slotn, ems_size_t size, ems_size_t offset) {
     block = slot[slotn];
 
     for (remain = size; remain > 0; remain -= READBLOCKSIZE) {
-        if (CHECKINT)
+        if (CHECKINT) {
+            warnx("operation interrupted");
             return FLASH_EINTR;
+        }
 
         if ((r = ems_read(FROM_ROM, offset, block, READBLOCKSIZE)) < 0) {
                 warnx("read error updating flash memory");
@@ -212,8 +220,10 @@ flash_erase(ems_size_t offset) {
     unsigned char blankbuf[32];
     int i, r;
 
-    if (CHECKINT)
+    if (CHECKINT)  {
+        warnx("operation interrupted");
         return FLASH_EINTR;
+    }
 
     for (i = 0; i < 2; i++) {
         memset(blankbuf, 0xff, 32);
@@ -235,8 +245,11 @@ flash_delete(ems_size_t offset, int blocks) {
     memset(zerobuf, 0, 32);
 
     while (blocks--) {
-        if (CHECKINT && (blocks+1)%2 == 0)
+        if (CHECKINT && (blocks+1)%2 == 0) {
+            warnx("operation interrupted");
             return FLASH_EINTR;
+        }
+
         r = ems_write(TO_ROM, offset + 0x130 - blocks*32,
             zerobuf, 32);
         if (r < 0) {

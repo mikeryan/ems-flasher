@@ -3,6 +3,7 @@
 
 #include "ems.h"
 #include "queue.h"
+#include "header.h"
 
 #define MINROMSIZE 32768
 
@@ -18,6 +19,7 @@ struct rom {
             void *fileinfo;
         } u;
     } source;
+    struct header header;
 
     TAILQ_ENTRY(rom) roms;
 };

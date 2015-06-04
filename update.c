@@ -41,7 +41,7 @@ update_bigrom(struct updates *updates, struct rom *rom) {
         if ((r = insert_writef(updates, rom)) != 0)
             return r;
     } else {
-        if ((insert_move(updates, rom)) != 0)
+        if ((r = insert_move(updates, rom)) != 0)
             return r;
     }
     return 0;

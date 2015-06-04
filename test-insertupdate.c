@@ -75,7 +75,7 @@ main(int argc, char **argv) {
             printf("writef\t%"PRIuEMSSIZE"\t%"PRIuEMSSIZE"\t%s\n",
                 u->update_writef_dstofs,
                 u->update_writef_size,
-                u->update_writef_fileinfo);
+                (char*)u->update_writef_fileinfo);
             break;
         case UPDATE_CMD_MOVE:
             printf("move\t%"PRIuEMSSIZE"\t%"PRIuEMSSIZE"\t%"PRIuEMSSIZE"\n",
@@ -112,7 +112,7 @@ dumpimage(struct image *image) {
         if (rom->source.type == ROM_SOURCE_FLASH)
             printf("\t%"PRIuEMSSIZE"\t", rom->source.u.origoffset);
         else
-            printf("%s\t\t", rom->source.u.fileinfo);
+            printf("%s\t\t", (char*)rom->source.u.fileinfo);
         printf("%"PRIuEMSSIZE"\t%"PRIuEMSSIZE"\n", rom->romsize, rom->offset);
     }
 }

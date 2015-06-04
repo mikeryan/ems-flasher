@@ -7,6 +7,7 @@
 
 typedef uint_least32_t ems_size_t;
 #define PRIuEMSSIZE PRIuLEAST32
+#define SCNuEMSSIZE PRIuLEAST32
 
 int ems_init(void);
 

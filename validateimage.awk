@@ -1,6 +1,6 @@
 #!/usr/bin/awk -f
 
-# Validate the format of an image as accepted by insert.awk
+# Validate the format of an image as accepted by test-insertupdate.c
 
 BEGIN {
     FS="\t"

@@ -2,10 +2,7 @@
 
 # Tests
 #
-# Currently only tests the defragmentation algorithm in insert.awk
-#
-# Environment variables:
-#    AWK: used to invoke AWK. Will use "awk" if empty.
+# Currently only tests insert(), defrag() and update()
 
 set -e
 
@@ -14,22 +11,18 @@ trap 'exit 1' TERM QUIT INT
 
 tmpd=$(mktemp -d)
 
-if [ -z "$AWK" ]; then
-    AWK=awk
-fi
-
 # Generate a ROM listing from an image string
 # $1: the image string
 # Output the list on stdout
 strtolist() {
-    "$AWK" -vimage=$1 '
+    awk -vimage=$1 '
     BEGIN {
         OFS = "\t"
         id = offset = 0
         for (i = 1; i <= length(image); i++) {
             size = 32768 * 2^substr(image, i, 1)
             if (substr(image, i+1, 1) != "*")
-                print id++, offset, size
+                print "", offset, size
             else
                 i++
             offset += size
@@ -57,7 +50,7 @@ testdefrag() {
     # location
     eval $(
         (cat "$tmpd/image"; printf "\t%d\t0\n" $PAGESIZE) | 
-            "$AWK" '
+            awk '
             BEGIN {
                 FS="\t"
                 lastoffset = freerommaxsize = 0
@@ -100,9 +93,9 @@ testdefrag() {
     size=$((freerommaxsize*2))
     while [ $size -le $freetotal ]; do
         echo "Testing defrag() with $image and a ROM of $((size>>10)) KB" >&2
-        printf "NEW\t\t$size\n" > "$tmpd/new"
+        printf "0\t\t$size\n" > "$tmpd/new"
         cat "$tmpd/image" "$tmpd/new" |
-            PAGESIZE=$PAGESIZE AWK=$AWK ./test.sh >/dev/null
+            PAGESIZE=$PAGESIZE ./test-insertupdate.sh >/dev/null
         size=$((size*2))
     done
     )

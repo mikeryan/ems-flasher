@@ -1,10 +1,7 @@
 #!/usr/bin/awk -f
 
-# Recreate the target image from the initial image and the output of
-# update.awk. The result should be the output of insert.awk.
-#
-# Stdin:
-#    The initial image and the output of update.awk
+# Recreate the target image from the initial image and update instructions.
+# The result is yet to be compared to the output of test-insertupdate.c.
 
 BEGIN {
     FS = OFS = "\t"
@@ -16,7 +13,7 @@ BEGIN {
         validsizes[32768 * 2^i] = 1
 }
 
-NF == 5 {
+/^[a-z]/ {
     input = "updates"
 }
 
@@ -30,7 +27,7 @@ input == "image" {
 }
 
 input == "updates" {
-    cmd = $1; id = $2; dest = $3; size = $4; src = $5
+    cmd = $1; dest = $2; size = $3; src = $4
 
     if (cmd == "writef") {
         write(src, dest, size, "")
@@ -125,10 +122,10 @@ function read(id, offset, size) {
     if (!(offset in image) || roms[offset, "size"] != size ||
         roms[offset, "origoffset"] != offset ||
         roms[offset, "id"] != id) {
-            error("source does not match or does not exist")
+            error("source does not match or does not exist (id="id")")
     }
     if (offset < lastoffset)
-        error("offset < lastoffset")
+        error("offset < lastoffset (id="id")")
 }
 
 function eraseblock(blockoffset,    offset) {
@@ -136,7 +133,7 @@ function eraseblock(blockoffset,    offset) {
         error("eraseblock")
 
     if (blockoffset < lastoffset)
-        error("blockoffset < lastoffset")
+        error("blockoffset < lastoffset (blockoffset="blockoffset" offset="offset")")
 
     eblockoffset = blockoffset + 64
 

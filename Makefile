@@ -1,32 +1,30 @@
-AWK=/usr/bin/awk
-LIBEXECDIR=/usr/local/lib/$(PROG)
 DATADIR=/usr/local/share/$(PROG)
 MENUDIR=$(DATADIR)
-
-PROG = ems-flasher
-OBJS = ems.o main.o header.o cmd.o flash.o
-
-PROGEMSFILE = ems-flasher-file
-OBJSEMSFILE = ems-file.o main.o header.o cmd.o flash.o
-
 MANDIR = /usr/share/man
 
 MENUVARS = menu.gb menucs.gb menuc.gb menus.gb
 
 CFLAGS  = -g -Wall -Werror -pedantic -std=c99 \
-	-DAWK="\"${AWK}\"" \
-	-DLIBEXECDIR="\"${LIBEXECDIR}\"" \
 	-DMENUDIR="\"${MENUDIR}\""
+
+PROG = ems-flasher
+OBJS = ems.o main.o header.o cmd.o flash.o insert.o update.o
+
+PROGEMSFILE = ems-flasher-file
+OBJSEMSFILE = ems-file.o main.o header.o cmd.o flash.o insert.o update.o
+
+PROGTESTINSERT = test-insertupdate
+OBJSTESTINSERT = test-insertupdate.o insert.o update.o
 
 all: $(PROG) check-menu
 
 $(PROG)-dev: $(PROG)
 	rm -f cmd.o
-	make $(PROG) MENUDIR=. LIBEXECDIR=. DATADIR=.
+	make $(PROG) MENUDIR=. DATADIR=.
 
 $(PROGEMSFILE)-dev: $(PROGEMSFILE)
 	rm -f cmd.o
-	make $(PROGEMSFILE) MENUDIR=. LIBEXECDIR=. DATADIR=.
+	make $(PROGEMSFILE) MENUDIR=. DATADIR=.
 
 $(PROG): $(OBJS)
 	$(CC) -o $(PROG) $(OBJS) `pkg-config --libs libusb-1.0`
@@ -69,16 +67,21 @@ menu: FORCE
 	cp menu/menu.gb .
 	make check-menu
 
+$(PROGTESTINSERT): $(OBJSTESTINSERT)
+	$(CC) -o $(PROGTESTINSERT) $(OBJSTESTINSERT)
+
+test-insert: FORCE $(PROGTESTINSERT)
+	./tests.sh
+
 install: $(PROG) check-menu
 	install ems-flasher /usr/local/bin
-	mkdir -p "${LIBEXECDIR}"
-	install insert.awk update.awk "${LIBEXECDIR}"
 	mkdir -p "${DATADIR}"
 	install menu.gb menucs.gb menuc.gb menus.gb "${DATADIR}"
 	install ems-flasher.1 $(MANDIR)/man1/
 
 clean:
 	rm -f $(PROG) $(OBJS) $(PROGEMSFILE) $(OBJSEMSFILE)
+	rm -f $(PROGTESTINSERT) $(OBJSTESTINSERT)
 
 clean-menu:
 	rm -f $(MENUVARS)

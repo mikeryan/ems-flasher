@@ -1,40 +1,44 @@
-/* for tempnam() and sigaction() */
-#define _XOPEN_SOURCE
+/*
+ * Notes:
+ * - cmd_xxx() functions doesn't have to free resources they use as the
+ *   program exits directly on return. To quit the program with an exit code
+ *   other than 0, simply use exit() or err()...
+ * - error messages are written by the functions where the errors occured, so
+ *   when a function return an error, you can exit directly.
+ */
 
-/* for strsep(): */
-#define _BSD_SOURCE
+/* for sigaction() and SA_RESTART */
+#define _XOPEN_SOURCE 500
 
 #include "ems.h"
 #include "header.h"
 #include "flash.h"
+#include "image.h"
+#include "insert.h"
+#include "update.h"
 
 #include <stdio.h>
 #include <stdlib.h>
 #include <signal.h>
 #include <string.h>
 #include <time.h>
-#include <errno.h>
 #include <err.h>
 
-/* for open() and close(): */
-#include <fcntl.h>
 #include <unistd.h>
-
 #include <sys/stat.h>
-#include <sys/wait.h>
 
-struct rom {
+struct listing_rom {
     ems_size_t offset;
     struct header header;
 };
 
-struct image {
+struct listing {
     int count;
-    struct rom romlist[PAGESIZE/32768];
+    struct listing_rom romlist[PAGESIZE/32768];
 };
 
-static void
-list(int page, struct image *image) {
+static int
+list(int page, struct listing *listing) {
     struct header header;
     unsigned char buf[HEADER_SIZE];
     ems_size_t base, offset;
@@ -42,13 +46,14 @@ list(int page, struct image *image) {
 
     base = page * PAGESIZE;
 
-    image->count = 0;
+    listing->count = 0;
     offset = 0;
     do {
         r = ems_read(FROM_ROM, base + offset, buf, HEADER_SIZE);
         if (r < 0) {
-            errx(1, "flash read error (address=%"PRIuEMSSIZE")",
+            warnx("flash read error (address=%"PRIuEMSSIZE")",
                 base + offset);
+            return 1;
         }
 
         /* Skip if it is not a valid header or the romsize code is incorrect
@@ -67,12 +72,14 @@ list(int page, struct image *image) {
                 continue;
         }
 
-        image->romlist[image->count].offset = offset;
-        image->romlist[image->count].header = header;
-        image->count++;
+        listing->romlist[listing->count].offset = offset;
+        listing->romlist[listing->count].header = header;
+        listing->count++;
 
         offset += header.romsize;
     } while (offset < PAGESIZE);
+
+    return 0;
 }
 
 static void
@@ -89,27 +96,28 @@ printenhancements(int enh) {
 
 void
 cmd_title(int page) {
-    struct image image;
+    struct listing listing;
     ems_size_t free;
     int menuenh, compat;
 
     printf("Bank  Title             Size     Enhancements\n");
 
-    list(page, &image);
+    if (list(page, &listing))
+        exit(1);
 
-    if (image.count > 0 && image.romlist[0].offset == 0 &&
-        strcmp(image.romlist[0].header.title, "GB16M") == 0) {
-            menuenh = image.romlist[0].header.enhancements;
+    if (listing.count > 0 && listing.romlist[0].offset == 0 &&
+        strcmp(listing.romlist[0].header.title, "GB16M") == 0) {
+            menuenh = listing.romlist[0].header.enhancements;
     } else {
             menuenh = -1;
     }
 
     compat = 1; // Assume ROMs have same enh. settings than the menu
     free = PAGESIZE;
-    for (int i = 0; i < image.count; i++) {
-        struct rom *rl;
+    for (int i = 0; i < listing.count; i++) {
+        struct listing_rom *rl;
 
-        rl = &image.romlist[i];
+        rl = &listing.romlist[i];
         printf("%3d   %-*s  %4"PRIuEMSSIZE" KB  ",
             (int)((rl->offset) / 16384), HEADER_TITLE_SIZE, rl->header.title,
             rl->header.romsize >> 10);
@@ -232,426 +240,353 @@ romfiles_compar_size_desc(const void *pa, const void *pb) {
     return 0;
 }
 
+static int
+validate_romfile(char *path, struct romfile *romfile) {
+    struct header header;
+    unsigned char buf[HEADER_SIZE];
+    time_t ctime;
+    FILE *f;
+
+    if ((f = fopen(path, "rb")) == NULL) {
+        warn("can't open %s", path);
+        return 1;
+    }
+    if (fread(buf, HEADER_SIZE, 1, f) < 1) {
+        if (ferror(f)) {
+            warn("error reading %s", path);
+            return 1;
+        } else {
+            warnx("invalid header for %s", path);
+            fclose(f);
+            return 1;
+        }
+    }
+    if (fclose(f) == EOF) {
+        warn("error closing %s", path);
+        return 1;
+    }
+    if (header_validate(buf) != 0) {
+        warnx("invalid header for %s", path);
+        return 1;
+    }
+    header_decode(&header, buf);
+
+    // Check ROM size validity
+    if (header.romsize == 0){
+        warnx("invalid romsize code in header of %s", path);
+        return 1;
+    }
+    {
+    struct stat buf;
+    if (stat(path, &buf) == -1) {
+        warn("can't stat %s", path);
+        return 1;
+    }
+
+    ctime = buf.st_ctime;
+
+    if (buf.st_size != header.romsize) {
+        warnx("ROM size declared in header of %s doesn't match file size",
+            path);
+        return 1;
+    }
+    }
+    if ((header.romsize & (header.romsize - 1)) != 0) {
+        warnx("size of %s is not a power of two", path);
+        return 1;
+    }
+
+    romfile->header = header;
+    romfile->path = path;
+    romfile->ctime = ctime;
+
+    return 0;
+}
+
 void
 cmd_write(int page, int verbose, int argc, char **argv) {
+    struct listing listing;
     struct image image;
     ems_size_t base, freesize;
-    char *tempfn, *menupath;
-    int pipe_in[2], pipe_out[2];
-    FILE *p;
-    pid_t pid;
-    int tempfd;
-    int r;
-    struct sigaction sa, oldsigpipe;
     struct romfile *romfiles;
+    struct romfile *menuromfile;
+    int r;
 
-    menupath = NULL;
-    romfiles = NULL;
+    if (argc == 0)
+        return;
+
+    image_init(&image);
+
     base = page * PAGESIZE;
+    menuromfile = romfiles = NULL;
+    freesize = PAGESIZE;
 
-    /* 
-     * Determine the update operations to add the new files to the image and put
-     * them in a temporary file.
-     *
-     * Plumbing:
-     * image + new files entries -> insert.awk -> update.awk -> update commands
-     * See insert.awk and update.awk for information about the in/out formats
-     */
+    if ((romfiles = malloc(argc*sizeof(*romfiles))) == NULL)
+        err(1, "malloc");
+
+    for (int i = 0; i < argc; i++)
+        if (validate_romfile(argv[i], &romfiles[i]))
+            exit(1);
+
+    if (list(page, &listing))
+        exit(1);
+
+    if (listing.count == 1 &&
+        listing.romlist[0].offset == 0 &&
+        strcmp(listing.romlist[0].header.title, "GB16M") == 0 &&
+        listing.romlist[0].header.romsize == 32768) {
+            if (romfiles[0].header.romsize == PAGESIZE ||
+                romfiles[0].header.enhancements != listing.romlist[0].header.enhancements) {
+                    listing.count--;
+            }
+    }
+
+    if (listing.count == 0 && romfiles[0].header.romsize < PAGESIZE) {
+        struct romfile *romf;
+        char *menupath;
+
+        if (verbose)
+            printf("Loading the menu ROM...");
+
+        romf = &romfiles[0];
+
+        switch (romf->header.enhancements & (HEADER_ENH_GBC | HEADER_ENH_SGB)) {
+        case HEADER_ENH_GBC | HEADER_ENH_SGB:
+            menupath = MENUDIR"/menucs.gb";
+            break;
+        case HEADER_ENH_GBC:
+            menupath = MENUDIR"/menuc.gb";
+            break;
+        case HEADER_ENH_SGB:
+            menupath = MENUDIR"/menus.gb";
+            break;
+        default:
+            menupath = MENUDIR"/menu.gb";
+        }
+
+        if ((menuromfile = malloc(sizeof(*menuromfile))) == NULL)
+            err(1, "malloc");
+
+        if (validate_romfile(menupath, menuromfile))
+            exit(1);
+
+        if (strcmp(menuromfile->header.title, "GB16M") != 0 ||
+            menuromfile->header.romsize != 32768) {
+                errx(1, "%s [%s] doesn't seem to be a menu ROM", menupath,
+                    menuromfile->header.title);
+        }
+    }
+
+    for (int i = 0; i < listing.count; i++) {
+        struct listing_rom *lsrom;
+        struct rom *rom;
+
+        lsrom = &listing.romlist[i];
+
+        if ((rom = malloc(sizeof(*rom))) == NULL)
+            err(1, "malloc");
+        rom->source.type = ROM_SOURCE_FLASH;
+        rom->romsize = lsrom->header.romsize;
+        rom->offset = rom->source.u.origoffset = lsrom->offset;
+        rom->header = lsrom->header;
+
+        image_insert_tail(&image, rom);
+
+        if (freesize < rom->romsize)
+            errx(1, "format error: sum of ROM sizes on flash exceeds the page size");
+        freesize -= rom->romsize;
+    }
+
+    if (menuromfile) {
+        struct rom *rom;
+
+        if ((rom = malloc(sizeof(*rom))) == NULL)
+            err(1, "malloc");
+        rom->source.type = ROM_SOURCE_FILE;
+        rom->romsize = 32768;
+        rom->offset = 0;
+        rom->source.u.fileinfo = menuromfile;
+        rom->header = menuromfile->header;
+
+        image_insert_tail(&image, rom);
+        freesize -= 32768;
+    }
+
+    qsort(romfiles, argc, sizeof(*romfiles), romfiles_compar_size_desc);
+
+    for (int i = 0; i < argc; i++) {
+        struct romfile *romf;
+        struct rom *rom;
+
+        romf = &romfiles[i];
+
+        // Check for duplicate titles
+        image_foreach(&image, rom) {
+            if (strcmp(romf->header.title, rom->header.title) == 0) {
+                if (rom->source.type == ROM_SOURCE_FLASH)
+                    errx(1, "%s: duplicate title with a ROM on cartridge: %s",
+                        romf->path, romf->header.title);
+                else errx(1, "%s: duplicate title with %s: %s", romf->path,
+                    ((struct romfile*)rom->source.u.fileinfo)->path,
+                    romf->header.title);
+            }
+        }
+
+        if ((rom = malloc(sizeof(*rom))) == NULL)
+            err(1, "malloc");
+        rom->source.type = ROM_SOURCE_FILE;
+        rom->romsize = romf->header.romsize;
+        rom->source.u.fileinfo = romf;
+        rom->header = romf->header;
+
+        image_insert_defrag(&image, rom);
+        if (freesize < romf->header.romsize)
+            errx(1,"no space left on page");
+        freesize -= romf->header.romsize;
+    }
+
+    {
+    struct updates *updates;
+    struct update *u;
+    struct sigaction sa, oldsa;
+    int indefrag;
+
+    image_update(&image, &updates);
+
+    progresstotal = 0;
+    updates_foreach(updates, u) {
+        switch (u->cmd) {
+        case UPDATE_CMD_WRITEF:
+            progresstotal += u->update_writef_size;
+            break;
+        case UPDATE_CMD_MOVE:
+            progresstotal += u->update_move_size*2;
+            break;
+        case UPDATE_CMD_WRITE:
+            progresstotal += u->update_write_size;
+            break;
+        case UPDATE_CMD_READ:
+            progresstotal += u->update_read_size;
+            break;
+        case UPDATE_CMD_ERASE:
+            break;
+        }
+    }
+
+    int_state = 0;
 
     memset(&sa, 0, sizeof(sa));
     sigemptyset(&sa.sa_mask);
-    sa.sa_handler = SIG_IGN;
-    if (sigaction(SIGPIPE, &sa, &oldsigpipe) == -1)
-        err(1, "sigaction");
+    sa.sa_handler = &int_handler;
+    sa.sa_flags = SA_RESTART;
 
-    if (pipe(pipe_in) == -1)
-        err(1, "pipe");
+    sigaction(SIGHUP, NULL, &oldsa);
+    if (oldsa.sa_handler != SIG_IGN)
+        sigaction(SIGHUP, &sa, NULL);
 
-    if (pipe(pipe_out) == -1)
-        err(1, "pipe");
+    sigaction(SIGINT, NULL, &oldsa);
+    if (oldsa.sa_handler != SIG_IGN)
+        sigaction(SIGINT, &sa, NULL);
 
-    if ((pid = fork()) == -1)
-        err(1, "fork");
+    sigaction(SIGTERM, NULL, &oldsa);
+    if (oldsa.sa_handler != SIG_IGN)
+        sigaction(SIGTERM, &sa, NULL);
 
-    if (pid == 0) {
-        if (close(pipe_in[1]) == -1)
-            err(1, "close");
-        if (close(pipe_out[0]) == -1)
-            err(1, "close");
-        if (dup2(pipe_in[0], 0) == -1)
-            err(1, "dup2");
-        if (dup2(pipe_out[1], 1) == -1)
-            err(1, "dup2");
-        execl(AWK, "insert.awk", "-f", LIBEXECDIR"/insert.awk", (char*)NULL);
-        warn("insert.awk");
-        _exit(1);
-    }
+    progressbytes = 0;
+    flash_init(verbose?progress:NULL, checkint);
 
-    if (close(pipe_in[0]) == -1)
-        err(1, "close");
-    if (close(pipe_out[1]) == -1)
-        err(1, "close");
-
-    if ((tempfn = tempnam(NULL, NULL)) == NULL)
-        err(1, "tempnam");
-    if ((tempfd = open(tempfn, O_CREAT | O_EXCL | O_RDWR, 0600)) == -1)
-        err(1, "error creating temporary file");
-    if (unlink(tempfn) == -1)
-        err(1, "unlink");
-
-    if ((pid = fork()) == -1)
-        err(1, "fork");
-
-    if (pid == 0) {
-        if (close(pipe_in[1]) == -1)
-            err(1, "close");
-        if (dup2(pipe_out[0], 0) == -1)
-            err(1, "dup2");
-        if (dup2(tempfd, 1) == -1)
-            err(1, "dup2");
-        execl(AWK, "update.awk", "-f", LIBEXECDIR"/update.awk", (char*)NULL);
-        warn("update.awk");
-        _exit(1);
-    }
-
-    if (close(pipe_out[0]) == -1)
-        err(1, "close");
-
-    if ((p = fdopen(pipe_in[1], "w")) == NULL)
-        err(1, "fdopen");
-
-    freesize = PAGESIZE;
-    list(page, &image);
-
-    // Delete the menu if it is the only ROM in the page
-    if (image.count == 1 &&
-        image.romlist[0].offset == 0 &&
-        strcmp(image.romlist[0].header.title, "GB16M") == 0) {
-            if (flash_delete(base, 2) != 0)
-                exit(1);
-            image.count--;
-    }
-
-    for (int i = 0; i < image.count; i++) {
-        fprintf(p, "%d\t%"PRIuEMSSIZE"\t%"PRIuEMSSIZE"\n",
-            i,
-            image.romlist[i].offset,
-            image.romlist[i].header.romsize);
-        if (freesize < image.romlist[i].header.romsize)
-            errx(1, "format error: sum of ROM sizes on flash exceeds the page size");
-        freesize -= image.romlist[i].header.romsize;
-    }
-
-    if (argc > 0)
-        if ((romfiles = malloc(argc*sizeof(*romfiles))) == NULL)
-            err(1, "malloc");
-
-    for (int i = 0; i < argc; i++) {
-        struct header header;
-        unsigned char buf[HEADER_SIZE];
-        time_t ctime;
-        char *path;
-        FILE *f;
-
-        path = argv[i];
-
-        f = fopen(path, "rb");
-        if (f == NULL)
-            err(1, "can't open %s", path);
-        if (fread(buf, HEADER_SIZE, 1, f) < 1) {
-            if (ferror(f))
-                err(1, "error reading %s", path);
-            else
-                errx(1, "invalid header for %s", path);
-        }
-        if (fclose(f) == EOF)
-            err(1, "error closing %s", path);
-        if (header_validate(buf) != 0)
-            errx(1, "invalid header for %s", path);
-        header_decode(&header, buf);
-
-        // Check ROM size validity
-        if (header.romsize == 0)
-            errx(1, "invalid romsize code in header of %s", path);
-        {
-        struct stat buf;
-        if (stat(path, &buf) == -1)
-            err(1, "can't stat %s", path);
-
-        ctime = buf.st_ctime;
-
-        if (buf.st_size != header.romsize)
-            errx(1, "ROM size declared in header of %s doesn't match file size",
-                path);
-        }
-        if ((header.romsize & (header.romsize - 1)) != 0)
-            errx(1, "size of %s is not a power of two", path);
-
-        // Check for duplicate titles
-        for (int j = 0; j < image.count; j++) {
-            if (strcmp(header.title, image.romlist[j].header.title) == 0)
-                errx(1, "%s: duplicate title with a ROM on cartridge: %s", path,
-                    header.title);
-        }
-        for (int j = 0; j < i; j++) {
-            if (strcmp(header.title, romfiles[j].header.title) == 0)
-                errx(1, "%s: duplicate title with %s: %s", path,
-                    romfiles[j].path, header.title);
-        }
-
-        // For the first new ROM: add a menu if the page is empty excepted if
-        // the ROM is 4MB.
-        if (i == 0 && image.count == 0 && header.romsize < PAGESIZE) {
-            switch (header.enhancements & (HEADER_ENH_GBC | HEADER_ENH_SGB)) {
-            case HEADER_ENH_GBC | HEADER_ENH_SGB:
-                menupath = MENUDIR"/menucs.gb";
-                break;
-            case HEADER_ENH_GBC:
-                menupath = MENUDIR"/menuc.gb";
-                break;
-            case HEADER_ENH_SGB:
-                menupath = MENUDIR"/menus.gb";
-                break;
-            default:
-                menupath = MENUDIR"/menu.gb";
+    indefrag = 0;
+    updates_foreach(updates, u) {
+        if (verbose) {
+            if (u->cmd == UPDATE_CMD_WRITEF) {
+                printf("Writing %s [%s]...\n",
+                    ((struct romfile*)u->update_writef_fileinfo)->path,
+                    u->rom->header.title);
+                indefrag = 0;
+            } else if (!indefrag) {
+                printf("Defragmenting...\n");
+                indefrag = 1;
             }
-
-            freesize -= 32768;
-            if (access(menupath, R_OK) != 0)
-                err(1, "can't access the menu image (%s)", menupath);
-        }
-
-        if (freesize < header.romsize)
-            errx(1,"no space left on page");
-        freesize -= header.romsize;
-
-        romfiles[i].header = header;
-        romfiles[i].path = path;
-        romfiles[i].ctime = ctime;
-    }
-
-    // sort the files by size in descending order
-    qsort(romfiles, argc, sizeof(*romfiles), romfiles_compar_size_desc);
-
-    if (menupath)
-        fprintf(p, "%d\t\t32768\n", argc);
-    for (int i = 0; i < argc; i++) {
-        fprintf(p, "%d\t\t%"PRIuEMSSIZE"\n", i, romfiles[i].header.romsize);
-    }
-
-    if (ferror(p))
-        errx(1, "error executing subprocess");
-
-    if (fclose(p) == -1)
-        err(1, "fclose");
-
-    {
-    int status;
-    while (wait(&status) != -1);
-    if (errno != ECHILD)
-        err(1, "wait");   
-    if (!WIFEXITED(status) || WEXITSTATUS(status) != 0)
-        errx(1, "error executing subprocess");
-    }
-
-    if (sigaction(SIGPIPE, &oldsigpipe, NULL) == -1)
-        err(1, "sigaction");
-
-    /*
-     * Update the flash card
-     *
-     * The update operations are read twice from the temp file created by the
-     * previous step.
-     *
-     * First pass:
-     *   Compute the total bytes read and written by read/write/move commands.
-     *
-     * Second pass:
-     *   Flash the page. The flashing functions regularly call a callback
-     *   function with progression information.
-     */
-    {
-    char line[1024], *linep;
-    FILE *f;
-
-    f = fdopen(tempfd, "r");
-    if (f == NULL)
-        err(1, "can't open temporary file");
-
-    for (int pass = 1; pass <= 2; pass++) {
-
-    if (pass == 1)
-        progresstotal = 0;
-    if (pass == 2) {
-        struct sigaction sa, oldsa;
-
-        memset(&sa, 0, sizeof(sa));
-        sigemptyset(&sa.sa_mask);
-        sa.sa_handler = &int_handler;
-        sa.sa_flags = SA_RESTART;
-
-        sigaction(SIGHUP, NULL, &oldsa);
-        if (oldsa.sa_handler != SIG_IGN)
-            sigaction(SIGHUP, &sa, NULL);
-
-        sigaction(SIGINT, NULL, &oldsa);
-        if (oldsa.sa_handler != SIG_IGN)
-            sigaction(SIGINT, &sa, NULL);
-
-        sigaction(SIGTERM, NULL, &oldsa);
-        if (oldsa.sa_handler != SIG_IGN)
-            sigaction(SIGTERM, &sa, NULL);
-
-        progressbytes = 0;
-        flash_init(verbose?progress:NULL, checkint);
-    }
-
-    {
-    enum {
-        RECOVERY_SKIP = 1,
-        RECOVERY_FLASH
-    } recovery = 0;
-    int indefrag = 0;
-
-    rewind(f);
-    while (fgets(line, sizeof(line), f) != NULL) {
-        char *token;
-        char *cmd;
-        long id, dest, size, src;
-
-        linep = line;
-
-        cmd = strsep(&linep, "\t");
-        if (cmd == NULL)
-            errx(1, "internal error: bad update command (empty)");
-        id = atol((token = strsep(&linep, "\t"))!=NULL?token:"");
-        dest = atol((token = strsep(&linep, "\t"))!=NULL?token:"");
-        size = atol((token = strsep(&linep, "\t"))!=NULL?token:"");
-        src = atol((token = strsep(&linep, "\t"))!=NULL?token:"");
-
-        // printf("%s\t%ld\t%ld\t%ld\t%ld\n", cmd, id, dest, size, src);
-
-        if (recovery) {
-            if (strcmp(cmd, "read") == 0 ||
-                (base + dest)/ERASEBLOCKSIZE != flash_lastofs/ERASEBLOCKSIZE) {
-                    exit(1);
-            }
-            if (strcmp(cmd, "write") != 0)
-                continue;
         }
 
         r = 0;
-        if (strcmp(cmd, "writef") == 0) {
-            char *path;
+        switch (u->cmd) {
+        case UPDATE_CMD_WRITEF: {
+            struct romfile *romfile;
+            struct stat buf;
 
-            if (pass == 1) {
-                progresstotal += size;
-            } else {
-                if (src < argc) {
-                    struct stat buf;
+            romfile = u->update_writef_fileinfo;
+            if (stat(romfile->path, &buf) == -1) {
+                warn("can't stat %s", romfile->path);
+                r = FLASH_EFILE;
+                break;
+            }
+            if (difftime(buf.st_ctime, romfile->ctime) != 0) {
+                warnx("%s has changed", romfile->path);
+                r = FLASH_EFILE;
+                break;
+            }
 
-                    path = romfiles[src].path;
-                    if (stat(path, &buf) == -1) {
-                        warn("can't stat %s", path);
-                        r = FLASH_EFILE;
-                        goto error;
-                    }
-                    if (difftime(buf.st_ctime, romfiles[src].ctime) != 0) {
-                        warnx("%s has changed", path);
-                        r = FLASH_EFILE;
-                        goto error;
-                    }
-                } else {
-                    path = menupath;
-                }
-
-                if (verbose) {
-                    indefrag = 0;
-                    printf("Writing %s (%s)...\n", path,
-                        romfiles[src].header.title);
-                }
-                r = flash_writef(base + dest, size, path);
-            }
-        } else if (strcmp(cmd, "move") == 0) {
-            if (pass == 1) {
-                progresstotal += size*2;
-            } else {
-                if (verbose && !indefrag) {
-                    printf("Defragmenting...\n");
-                    indefrag = 1;
-                }
-                r = flash_move(base + dest, size, base + src);
-            }
-        } else if (strcmp(cmd, "read") == 0) {
-            if (pass == 1) {
-                progresstotal += size;
-            } else {
-                if (verbose && !indefrag) {
-                    printf("Defragmenting...\n");
-                    indefrag = 1;
-                }
-                r = flash_read(dest, size, base + src);
-            }
-        } else if (strcmp(cmd, "write") == 0) {
-            if (pass == 1) {
-                progresstotal += size;
-            } else {
-                if (recovery != RECOVERY_SKIP) {
-                    if (verbose) {
-                        if (!recovery) {
-                            if (!indefrag) {
-                                printf("Defragmenting...\n");
-                                indefrag = 1;
-                            }
-                        } else {
-                            printf("Recovering %s...\n",
-                                image.romlist[id].header.title);
-                        }
-                    }
-                    r = flash_write(base + dest, size, src);
-                }
-                if (r || recovery == RECOVERY_SKIP) {
-                    if (flash_lastofs/ERASEBLOCKSIZE == (base+dest)/ERASEBLOCKSIZE)
-                        warnx("%slost %s at bank %d",
-                            r == FLASH_EUSB &&
-                                flash_lastofs%ERASEBLOCKSIZE==0?"possibly ":"",
-                            image.romlist[id].header.title,
-                            image.romlist[id].offset/16384);
-                }
-            }
-        } else if (strcmp(cmd, "erase") == 0) {
-            if (pass == 2)
-                r = flash_erase(base + dest);
-        } else {
-            errx(1, "internal error: bad update command (%s)", cmd);
+            r = flash_writef(base + u->update_writef_dstofs,
+                u->update_writef_size, romfile->path);
+            break;
         }
-        if (pass == 2 && verbose)
+        case UPDATE_CMD_MOVE:
+            r = flash_move(base + u->update_move_dstofs,
+                u->update_move_size, base + u->update_move_srcofs);
+            break;
+        case UPDATE_CMD_READ:
+            r = flash_read(u->update_read_dstslot, u->update_read_size,
+                    base + u->update_read_srcofs);
+            break;
+        case UPDATE_CMD_WRITE:
+            r = flash_write(base + u->update_write_dstofs,
+                u->update_write_size, u->update_write_srcslot);
+            break;
+        case UPDATE_CMD_ERASE:
+            r = flash_erase(base + u->update_erase_dstofs);
+            break;
+        default:
+            errx(1, "internal error: bad update command (%d)", u->cmd);
+        }
+        if (verbose)
             putchar('\n');
-    error:
-        if (r) {
-            if (r == FLASH_EINTR)
-                warnx("operation interrupted");
 
-            if (r == FLASH_EUSB)
-                recovery = RECOVERY_SKIP;
-            else
-                recovery = RECOVERY_FLASH;
-        }
+        if (r)
+            break;
     }
-    if (recovery)
+
+    if (r) {
+        struct update *err_update = u;
+
+        for (; u != NULL; u = updates_next(u)) {
+            if (u->cmd != UPDATE_CMD_WRITE)
+                continue;
+
+            if (flash_lastofs/ERASEBLOCKSIZE != u->update_write_dstofs/ERASEBLOCKSIZE)
+                break;
+
+            if (r != FLASH_EUSB && u != err_update) {
+                int err;
+
+                if (verbose)
+                    printf("Recovering %s\n", u->rom->header.title);
+
+                err = flash_write(base + u->update_write_dstofs,
+                    u->update_write_size, u->update_write_srcslot);
+                if (err) {
+                    r = err;
+                    err_update = u;
+                }           
+            }
+
+            if (r == FLASH_EUSB || u == err_update) {
+                warnx("%slost %s\n",
+                    flash_lastofs%ERASEBLOCKSIZE == 0?"possibly ":"",
+                    u->rom->header.title);
+            }
+        }
         exit(1);
     }
-    if (ferror(f))
-        err(1, "error reading temporary file");
     }
-
-    if (fclose(f) == EOF)
-        err(1, "can't close temporary file");
-    }
-
-    /* Note: should restore signal handlers but not needed as the program
-       exits directly */
-
-    if (romfiles != NULL)
-        free(romfiles);
 }

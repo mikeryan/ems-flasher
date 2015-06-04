@@ -45,6 +45,7 @@ struct update {
 
 #define updates_foreach(us, u) SIMPLEQ_FOREACH(u, us, updates)
 #define updates_insert_tail(us, u) SIMPLEQ_INSERT_TAIL(us, u, updates)
+#define updates_next(u) SIMPLEQ_NEXT(u, updates)
 #define updates_init(us) SIMPLEQ_INIT(us)
 
 int image_update(struct image*, struct updates**);
