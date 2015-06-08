@@ -95,7 +95,7 @@ flash_writef(ems_size_t offset, ems_size_t size, char *path) {
 int
 flash_move(ems_size_t offset, ems_size_t size, ems_size_t origoffset) {
     unsigned char blockbuf[(READBLOCKSIZE < WRITEBLOCKSIZE)?WRITEBLOCKSIZE:READBLOCKSIZE];
-    unsigned char blockbuf100[WRITEBLOCKSIZE];
+    unsigned char blockbuf100[WRITEBLOCKSIZE*2];
     ems_size_t remain, src, dest, blockofs, progress;
     int r, flipflop;
 
@@ -119,7 +119,8 @@ flash_move(ems_size_t offset, ems_size_t size, ems_size_t origoffset) {
 
         for (blockofs = 0; blockofs < READBLOCKSIZE; blockofs += WRITEBLOCKSIZE) {
             if (src == origoffset && blockofs == 0x100)  {
-                memcpy(blockbuf100, blockbuf+0x100, WRITEBLOCKSIZE);
+                memcpy(blockbuf100, blockbuf+0x100, WRITEBLOCKSIZE*2);
+                blockofs += WRITEBLOCKSIZE;
                 continue;
             }
 
@@ -142,10 +143,12 @@ flash_move(ems_size_t offset, ems_size_t size, ems_size_t origoffset) {
         dest += READBLOCKSIZE;
     }
 
-    if ((r = ems_write(TO_ROM, offset+0x100, blockbuf100,
-        WRITEBLOCKSIZE)) < 0) {
-            warnx("write error updating flash memory");
-            return FLASH_EUSB;
+    for (int i = 0; i < 2; i++) {
+        if (ems_write(TO_ROM, offset+0x100+i*WRITEBLOCKSIZE,
+            blockbuf100+i*WRITEBLOCKSIZE, WRITEBLOCKSIZE) < 0) {
+                warnx("write error updating flash memory");
+                return FLASH_EUSB;
+        }
     }
 
     PROGRESS(READBLOCKSIZE);
