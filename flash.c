@@ -41,7 +41,7 @@ flash_writef(ems_size_t offset, ems_size_t size, char *path) {
     }
 
     progress = 0;
-    for (blockofs = 0; blockofs <= size; blockofs += WRITEBLOCKSIZE*2) {
+    for (blockofs = 0; blockofs < size; blockofs += WRITEBLOCKSIZE*2) {    
         if (fread(blockbuf, 1, WRITEBLOCKSIZE*2, f) < WRITEBLOCKSIZE*2) {
             if (ferror(f)) {
                 warn("error reading %s", path);
