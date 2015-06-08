@@ -245,7 +245,7 @@ flash_delete(ems_size_t offset, int blocks) {
     memset(zerobuf, 0, 32);
 
     while (blocks--) {
-        if (CHECKINT && (blocks+1)%2 == 0) {
+        if ((blocks+1)%2 == 0 && CHECKINT) {
             warnx("operation interrupted");
             return FLASH_EINTR;
         }
