@@ -16,12 +16,15 @@
 #include "image.h"
 #include "insert.h"
 #include "update.h"
+#include "cmd.h"
+#include "progress.h"
 
 #include <stdio.h>
 #include <stdlib.h>
 #include <signal.h>
 #include <string.h>
 #include <time.h>
+#include <math.h>
 #include <err.h>
 
 #include <unistd.h>
@@ -198,15 +201,6 @@ cmd_format(int page, int verbose) {
     for (offset = 0; offset <= PAGESIZE - 32768; offset += 32768)
         if (flash_delete(base + offset, 1) != 0)
             exit(1);
-}
-
-static ems_size_t progresstotal, progressbytes;
-
-static void
-progress(ems_size_t bytes) {
-    progressbytes += bytes;
-    printf(" %3"PRIuEMSSIZE"%%\r", progressbytes*100/progresstotal);
-    fflush(stdout);
 }
 
 volatile sig_atomic_t int_state = 0;
@@ -453,26 +447,6 @@ cmd_write(int page, int verbose, int argc, char **argv) {
 
     image_update(&image, &updates);
 
-    progresstotal = 0;
-    updates_foreach(updates, u) {
-        switch (u->cmd) {
-        case UPDATE_CMD_WRITEF:
-            progresstotal += u->update_writef_size;
-            break;
-        case UPDATE_CMD_MOVE:
-            progresstotal += u->update_move_size*2;
-            break;
-        case UPDATE_CMD_WRITE:
-            progresstotal += u->update_write_size;
-            break;
-        case UPDATE_CMD_READ:
-            progresstotal += u->update_read_size;
-            break;
-        case UPDATE_CMD_ERASE:
-            break;
-        }
-    }
-
     int_state = 0;
 
     memset(&sa, 0, sizeof(sa));
@@ -492,7 +466,8 @@ cmd_write(int page, int verbose, int argc, char **argv) {
     if (oldsa.sa_handler != SIG_IGN)
         sigaction(SIGTERM, &sa, NULL);
 
-    progressbytes = 0;
+    progress_start(updates);
+
     flash_init(verbose?progress:NULL, checkint);
 
     indefrag = 0;
@@ -502,9 +477,11 @@ cmd_write(int page, int verbose, int argc, char **argv) {
                 printf("Writing %s [%s]...\n",
                     ((struct romfile*)u->update_writef_fileinfo)->path,
                     u->rom->header.title);
+                progress(PROGRESS_REFRESH, 0);
                 indefrag = 0;
             } else if (!indefrag) {
                 printf("Defragmenting...\n");
+                progress(PROGRESS_REFRESH, 0);
                 indefrag = 1;
             }
         }

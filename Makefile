@@ -8,10 +8,11 @@ CFLAGS  = -g -Wall -Werror -pedantic -std=c99 \
 	-DMENUDIR="\"${MENUDIR}\""
 
 PROG = ems-flasher
-OBJS = ems.o main.o header.o cmd.o flash.o insert.o update.o
+OBJS = ems.o main.o header.o cmd.o progress.o flash.o insert.o update.o
 
 PROGEMSFILE = ems-flasher-file
-OBJSEMSFILE = ems-file.o main.o header.o cmd.o flash.o insert.o update.o
+OBJSEMSFILE = ems-file.o main.o header.o cmd.o progress.o flash.o insert.o \
+              update.o
 
 PROGTESTINSERT = test-insertupdate
 OBJSTESTINSERT = test-insertupdate.o insert.o update.o

@@ -1,28 +1,26 @@
 #include "ems.h"
 #include "flash.h"
+#include "progress.h"
 
 #include <stdio.h>
 #include <string.h>
 #include <signal.h>
 #include <err.h>
 
-#define WRITEBLOCKSIZE 32
-#define READBLOCKSIZE 4096
-
 #define NBSLOTS 3
 static unsigned char slot[NBSLOTS][ERASEBLOCKSIZE/2];
 
-static void (*flash_progress_cb)(ems_size_t);
+static void (*flash_progress_cb)(int, ems_size_t);
 static int (*flash_checkint_cb)(void);
 
 #define CHECKINT (flash_checkint_cb?flash_checkint_cb():0)
-#define PROGRESS(size)                                                         \
+#define PROGRESS(type, size)                                                   \
     do {                                                                       \
-        if (flash_progress_cb) flash_progress_cb(size);                        \
+        if (flash_progress_cb) flash_progress_cb(type, size);                  \
     } while (0)
 
 void
-flash_init(void (*progress_cb)(ems_size_t), int (*checkint_cb)(void)) {
+flash_init(void (*progress_cb)(int, ems_size_t), int (*checkint_cb)(void)) {
     flash_lastofs = -1;
     flash_progress_cb = progress_cb;
     flash_checkint_cb = checkint_cb;
@@ -69,8 +67,12 @@ flash_writef(ems_size_t offset, ems_size_t size, char *path) {
                     return FLASH_EUSB;
             }
         }
+
+        if ((offset + blockofs)%ERASEBLOCKSIZE == 0)
+            PROGRESS(PROGRESS_ERASE, 0);
+
         if ((progress += WRITEBLOCKSIZE*2)%READBLOCKSIZE == 0)
-            PROGRESS(READBLOCKSIZE);
+            PROGRESS(PROGRESS_WRITEF, READBLOCKSIZE);
     }
 
     for (i = 0; i < 2; i++) {
@@ -83,7 +85,7 @@ flash_writef(ems_size_t offset, ems_size_t size, char *path) {
         }
     }
 
-    PROGRESS(READBLOCKSIZE);
+    PROGRESS(PROGRESS_WRITEF, READBLOCKSIZE);
 
     if (fclose(f) == EOF) {
         warn("can't close %s", path);
@@ -115,7 +117,7 @@ flash_move(ems_size_t offset, ems_size_t size, ems_size_t origoffset) {
             return FLASH_EUSB;
         }
 
-        PROGRESS(READBLOCKSIZE);
+        PROGRESS(PROGRESS_READ, READBLOCKSIZE);
 
         for (blockofs = 0; blockofs < READBLOCKSIZE; blockofs += WRITEBLOCKSIZE) {
             if (src == origoffset && blockofs == 0x100)  {
@@ -135,8 +137,11 @@ flash_move(ems_size_t offset, ems_size_t size, ems_size_t origoffset) {
                     return FLASH_EUSB;
             }
 
+            if ((dest + blockofs)%ERASEBLOCKSIZE == 0)
+                PROGRESS(PROGRESS_ERASE, 0);
+
             if ((progress += WRITEBLOCKSIZE)%READBLOCKSIZE == 0)
-                PROGRESS(READBLOCKSIZE);
+                PROGRESS(PROGRESS_WRITE, READBLOCKSIZE);
         }
 
         src += READBLOCKSIZE;
@@ -151,7 +156,7 @@ flash_move(ems_size_t offset, ems_size_t size, ems_size_t origoffset) {
         }
     }
 
-    PROGRESS(READBLOCKSIZE);
+    PROGRESS(PROGRESS_WRITE, READBLOCKSIZE);
 
     return flash_delete(origoffset, 2);
 }
@@ -178,7 +183,7 @@ flash_read(int slotn, ems_size_t size, ems_size_t offset) {
         block += READBLOCKSIZE;
         offset += READBLOCKSIZE;
 
-        PROGRESS(READBLOCKSIZE);
+        PROGRESS(PROGRESS_READ, READBLOCKSIZE);
     }
 
     return 0;
@@ -203,8 +208,11 @@ flash_write(ems_size_t offset, ems_size_t size, int slotn) {
                 return FLASH_EUSB;
         }
 
+        if ((offset + blockofs) % ERASEBLOCKSIZE == 0)
+            PROGRESS(PROGRESS_ERASE, 0);
+
         if ((progress += WRITEBLOCKSIZE) % READBLOCKSIZE == 0)
-            PROGRESS(READBLOCKSIZE);
+            PROGRESS(PROGRESS_WRITE, READBLOCKSIZE);
     }
 
     if ((r = ems_write(TO_ROM, offset + 0x100, buf + 0x100,
@@ -213,7 +221,7 @@ flash_write(ems_size_t offset, ems_size_t size, int slotn) {
             return FLASH_EUSB;
     }
 
-    PROGRESS(READBLOCKSIZE);
+    PROGRESS(PROGRESS_WRITE, READBLOCKSIZE);
 
     return 0;
 }
@@ -236,6 +244,8 @@ flash_erase(ems_size_t offset) {
                 return FLASH_EUSB;
         }
     }
+
+    PROGRESS(PROGRESS_ERASE, 0);
 
     return 0;
 }
