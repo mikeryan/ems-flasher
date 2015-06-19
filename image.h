@@ -7,6 +7,28 @@
 
 #define MINROMSIZE 32768
 
+/* 
+ * struct image represents the image of a page. It is a doubly linked list of
+ * struct rom. ROMs are listed in ascending order of their offset.
+ *
+ * Important: the image should be kept valid:
+ *   - ROMs can not overlap.
+ *   - ROMs must be aligned to their size
+ *   - ROM size must be specified (and actually, the routines in the present
+ *     version, expect a power of two).
+ *
+ * struct rom:
+ *   offset  : offset, in bytes, relative to the start of the page
+ *   romsize : the actual size of the ROM, in bytes. May differ from
+ *             header.romsize.
+ *   source : where the data belong:
+ *      Flash: the ROM is already present in flash. origoffset is the offset of
+ *             the ROM in the flash memory.
+ *      File: fileinfo is a void*. This could point to a path string or a more
+ *            complex data structure.
+ *   header: decoded header of the ROM
+ */
+
 TAILQ_HEAD(image, rom);
 
 struct rom {

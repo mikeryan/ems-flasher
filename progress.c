@@ -20,6 +20,12 @@ struct {
 
 static struct timeval prectime;
 
+/**
+ * Initialize progression
+ *   - get the current time
+ *   - compute the total number of bytes transferred for each transfer type.
+ *     (see flash.c, under "Progress status").
+ */
 void
 progress_start(struct updates *updates) {
     struct update *u;
@@ -66,6 +72,23 @@ progress_start(struct updates *updates) {
     }
 }
 
+/**
+ * Callback called regularly by the transfer functions in flash.c.
+ * Parameters:
+ *   type:
+ *     A transfer type: ERASE, WRITEF, READ, WRITE. This information is useful
+ *     to estimate at best the transfer rate as it can differ from one type to
+ *     another. REFRESH simply display the last status.
+ *   bytes:
+ *      The size of the chunk transfered.
+ *
+ * The estimated remaining time is computed from the number of bytes left to be
+ * transfered and the measured rate for each type of transfer. The estimation is
+ * made from the PROGRESS_NBSTEPS last samples.
+ *
+ * Important: currently, this function expects to be called with a chunk size of
+ * 4 KB (READBLOCKSIZE), expected for ERASE and REFRESH.
+ */
 void
 progress(int type, ems_size_t bytes) {
     ems_size_t progressbytes, progresstotal;
@@ -154,6 +177,7 @@ refresh:
                 rate = (double)time/progress_type[i].stepscount/1000;
         }
 
+        // Use default when the rate is not yet known
         if (rate == 0) {
             switch (i) {
             case PROGRESS_ERASE:

@@ -1,3 +1,40 @@
+/*
+ * High-level flash I/O commands, notably those described in update.h
+ *
+ * This module can be initialized by flash_init() with progress_cb and
+ * checkint_cb callbacks. Both callbacks are optional.
+ *
+ * When writing a ROM to flash memory, one piece of the header is written last
+ * (containing a part of the logo), making the header invalid and thus the ROM
+ * hidden until the very last block is transferred and all operations succeeded.
+ *
+ * The move operation delete the ROM from its source location only when it has
+ * been copied completely.
+ *
+ * Global Variables
+ *
+ * flash_lastofs: higher address written on flash. This can be used to determine
+ *   the last formated erase-block.
+ *
+ * Progression status
+ *
+ *   progress_cb is called for every 4 KB of transfered bytes as required by
+ *   the current implementation of progress.c.
+ *   The total number of bytes transferred is computed as follow:
+ *         writef, read, write: "size" bytes
+ *         move: 2*"size" bytes
+ *         erase: 0 bytes
+ *
+ * Signals handling
+ *
+ *   checkint_cb is called regularly during a transfer and must return non-zero
+ *   if an interrupt signal has been caught. A function returns EFLASH_EINTR
+ *   when interrupted.
+ *   The caller is responsible for blocking or redirecting signals.
+ *   write() is atomic, it doesn't check for interrupts. This keeps us from
+ *   recovering a partialy written ROM.
+ */
+
 #include "ems.h"
 #include "flash.h"
 #include "progress.h"

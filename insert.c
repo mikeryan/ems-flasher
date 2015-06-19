@@ -4,6 +4,17 @@
 
 ems_size_t insert_pagesize = PAGESIZE;
 
+/*
+ * Important: the struct image provided to these functions should be valid
+ * (see update.h). The ROMs must have a size power of two.
+ */
+
+/**
+ * Insert a ROM in an image using best-fit to limit the fragmentation (as ROM
+ * size is always a power of two).
+ *
+ * Returns non-zero in case of error.
+ */
 int
 image_insert(struct image *image, struct rom *newrom) {
     struct {
@@ -19,6 +30,12 @@ image_insert(struct image *image, struct rom *newrom) {
     offset = 0;
     prev = NULL;
     bestfit.size = (ems_size_t)-1;
+
+    /*
+     * For each free contiguous space:
+     *    Consider all free ROM (aligned) locations of this space. Always taking
+     *    the biggest possible ROM size for each location.
+     */
     image_foreach(image, rom) {
         ems_size_t cur, next;
 
@@ -61,6 +78,12 @@ image_insert(struct image *image, struct rom *newrom) {
     return 1;
 }
 
+/**
+ * Insert a ROM in an image, triggering incremental defragmentation if
+ * necessary.
+ *
+ * Returns non-zero in case of error
+ */
 int
 image_insert_defrag(struct image *image, struct rom *newrom) {
     if (image_insert(image, newrom)) {
@@ -70,6 +93,13 @@ image_insert_defrag(struct image *image, struct rom *newrom) {
     return 0;
 }
 
+/**
+ * Move a ROM from a used buddy of "buddysize" to a free buddy of the same size
+ * while conserving the offset relative to the start of the buddy.
+ *
+ * Used iteratively by image_defrag to move the ROMs of a used buddy to a free
+ * one.
+ */
 static void
 moverom(struct image *image, struct rom *destrom, ems_size_t destofs,
     ems_size_t buddysize, struct rom *srcrom) {
@@ -82,6 +112,15 @@ moverom(struct image *image, struct rom *destrom, ems_size_t destofs,
         image_insert_head(image, srcrom);
 }
 
+/**
+ * Defragment incrementally the image to make space for a ROM of "size" bytes,
+ * aligned to its size.
+ *
+ * Note: it is guaranteed that ROMs are always moved from higher addresses to
+ *       lower addresses. This is important for image_update().
+ *
+ * Returns non-zero in case of error
+ */
 int
 image_defrag(struct image *image, ems_size_t size) {
     struct rom *firstrom, *secondrom, *insertrom, *nxt, *move, *prev;
@@ -91,6 +130,15 @@ image_defrag(struct image *image, ems_size_t size) {
     if (size == MINROMSIZE)
         return 1;
 
+    /* This algorithm takes advantage of the buddy system. */
+
+    /*
+     * Reserve two free spaces of size/2 by allocating two dummy ROMs (firstrom
+     * and secondrom). This function will be called recursively by
+     * image_insert_defrag() when necessary.
+     *
+     * firstrom will be the ROM with the lowest offset.
+     */
     dummyrom[0].romsize = dummyrom[1].romsize = size/2;
     firstrom = &dummyrom[0];
     secondrom = &dummyrom[1];
@@ -109,6 +157,16 @@ image_defrag(struct image *image, ems_size_t size) {
         secondrom = temp;
     }
 
+    /*
+     * Move the ROMs contained in the buddy of the second free ROM location into
+     * the first free ROM location. This will free the buddy of the second free
+     * ROM and then create a free location for a ROM of "size" bytes aligned
+     * correctly.
+     *
+     * Remark: it could happen that the two free spaces are buddies. In this
+     * case, no ROM would be moved.
+     */
+
     insertrom = image_prev(firstrom);
     firstoffset = firstrom->offset;
     image_remove(image, firstrom);
@@ -119,6 +177,8 @@ image_defrag(struct image *image, ems_size_t size) {
     image_remove(image, secondrom);
 
     if ((secondoffset & (size/2)) == 0) {
+        /* The buddy of the second free space is on its right (higher
+           addresses) */
         move = nxt;
         buddyoffset = secondoffset + size/2;
         while (move != NULL && move->offset < buddyoffset+size/2) {
@@ -128,6 +188,8 @@ image_defrag(struct image *image, ems_size_t size) {
             move = nextmove;
         }
     } else {
+        /* The buddy of the second free space is on its left (lower
+           addresses) */
         move = prev;
         buddyoffset = secondoffset - size/2;
         while (move != NULL && move->offset >= buddyoffset) {

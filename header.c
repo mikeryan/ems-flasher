@@ -29,7 +29,7 @@ const unsigned char nintylogo[0x30] = {
 };
 
 /**
- * Check if a ROM header is valid
+ * Check if a ROM header is valid.
  *
  * Returns 0 if the header is valid.
  * 
@@ -53,6 +53,8 @@ header_validate(unsigned char *header) {
 
 /**
  * Decode fields of a ROM header
+ *
+ * See header.h for the data format.
  */
 void
 header_decode(struct header *header, unsigned char *raw) {

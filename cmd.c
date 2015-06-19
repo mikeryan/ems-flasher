@@ -40,6 +40,14 @@ struct listing {
     struct listing_rom romlist[PAGESIZE/32768];
 };
 
+/**
+ * Create a listing of the ROM.
+ * The listing is guaranteed to represent a valid image:
+ *   - no ROM overlapping
+ *   - size is a power of two
+ *   - ROMs are aligned to their size
+ * ROMs that doesn't meet these conditions are discarded.
+ */
 static int
 list(int page, struct listing *listing) {
     struct header header;
@@ -203,6 +211,10 @@ cmd_format(int page, int verbose) {
             exit(1);
 }
 
+/*
+ * --write command handling
+ */
+
 volatile sig_atomic_t int_state = 0;
 
 static void
@@ -234,6 +246,14 @@ romfiles_compar_size_desc(const void *pa, const void *pb) {
     return 0;
 }
 
+/**
+ * Validate a ROM file:
+ *   - the header must be valid
+ *   - the size declared in the header must be a power of two and match the
+ *     file size
+ *
+ *  Set a struct romfile with the header, the path and the ctime of the file
+ */
 static int
 validate_romfile(char *path, struct romfile *romfile) {
     struct header header;
@@ -325,6 +345,15 @@ cmd_write(int page, int verbose, int argc, char **argv) {
     if (list(page, &listing))
         exit(1);
 
+    /*
+     * If present, remove the menu if:
+     *   - there is no other ROM in the page
+     *   - the user wants to insert a 4MB flash (taking the entire page)
+     *   - or the hardware enh. doesn't match those of the first ROM file.
+     *
+     * Note: the menu is not deleted from the flash right now but it will be
+     *       overwritten later.
+     */
     if (listing.count == 1 &&
         listing.romlist[0].offset == 0 &&
         strcmp(listing.romlist[0].header.title, "GB16M") == 0 &&
@@ -335,6 +364,11 @@ cmd_write(int page, int verbose, int argc, char **argv) {
             }
     }
 
+    /*
+     * Add a menu if the page is empty and the the user doesn't want to insert
+     * a 4 MB ROM.
+     * The hardware enh. will be set according to the first ROM file.
+     */
     if (listing.count == 0 && romfiles[0].header.romsize < PAGESIZE) {
         struct romfile *romf;
         char *menupath;
@@ -371,6 +405,10 @@ cmd_write(int page, int verbose, int argc, char **argv) {
         }
     }
 
+    /*
+     * Create an image of the page with existing ROMs in flash.
+     * (with the exception of the menu if it was removed in a previous step)
+     */
     for (int i = 0; i < listing.count; i++) {
         struct listing_rom *lsrom;
         struct rom *rom;
@@ -391,6 +429,7 @@ cmd_write(int page, int verbose, int argc, char **argv) {
         freesize -= rom->romsize;
     }
 
+    // Insert the menu in the image (it means that the image is empty)
     if (menuromfile) {
         struct rom *rom;
 
@@ -405,6 +444,13 @@ cmd_write(int page, int verbose, int argc, char **argv) {
         image_insert_tail(&image, rom);
         freesize -= 32768;
     }
+
+    /*
+     * Insert ROM files ordered by size in descending order in the image to
+     * limit the fragmentation.
+     *
+     * Ensure that there is no duplicate title.
+     */
 
     qsort(romfiles, argc, sizeof(*romfiles), romfiles_compar_size_desc);
 
@@ -439,6 +485,14 @@ cmd_write(int page, int verbose, int argc, char **argv) {
         freesize -= romf->header.romsize;
     }
 
+    /*
+     * Update the flash memory
+     *
+     * Compute updates with image_update() and execute each commands
+     * sequentialy.
+     * In case of a non-USB error, recover the small ROMs saved by the read
+     * command.
+     */
     {
     struct updates *updates;
     struct update *u;
@@ -492,6 +546,8 @@ cmd_write(int page, int verbose, int argc, char **argv) {
             struct romfile *romfile;
             struct stat buf;
 
+            // Check if the file has changed this the last time.
+            // Note: use ctime and it is not reliable with all OS or filesystems.
             romfile = u->update_writef_fileinfo;
             if (stat(romfile->path, &buf) == -1) {
                 warn("can't stat %s", romfile->path);
@@ -533,9 +589,12 @@ cmd_write(int page, int verbose, int argc, char **argv) {
             break;
     }
 
+    // Error recovery
     if (r) {
-        struct update *err_update = u;
+        struct update *err_update = u; // Command that caused the error
 
+        // For each write command in the erase-block in which the error occured
+        // and only if this erase-block was formated:
         for (; u != NULL; u = updates_next(u)) {
             if (u->cmd != UPDATE_CMD_WRITE)
                 continue;
@@ -543,6 +602,8 @@ cmd_write(int page, int verbose, int argc, char **argv) {
             if (flash_lastofs/ERASEBLOCKSIZE != u->update_write_dstofs/ERASEBLOCKSIZE)
                 break;
 
+            // Recover only on non-USB error and don't re-execute write if it is
+            // this command that caused the error.
             if (r != FLASH_EUSB && u != err_update) {
                 int err;
 
@@ -557,6 +618,9 @@ cmd_write(int page, int verbose, int argc, char **argv) {
                 }           
             }
 
+            // Otherwise, display the title of lost ROMs.
+            // We can't be sure that the erase-block was formated if the error
+            // occured while writing to offset 0 of the erase-block.
             if (r == FLASH_EUSB || u == err_update) {
                 warnx("%slost %s\n",
                     flash_lastofs%ERASEBLOCKSIZE == 0?"possibly ":"",
