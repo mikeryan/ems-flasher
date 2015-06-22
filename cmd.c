@@ -101,7 +101,7 @@ printenhancements(int enh) {
         if (enh & HEADER_ENH_GBC)
             printf("Color");
         if (enh & HEADER_ENH_SGB)
-            printf(" + Super");
+            printf("%sSuper", enh != HEADER_ENH_SGB?" + ":"");
     }
 }
 
