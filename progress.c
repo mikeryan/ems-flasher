@@ -117,13 +117,13 @@ progress(int type, ems_size_t bytes) {
         delay = 1000;
         break;
     case PROGRESS_WRITEF:
-        delay = bytes*1000/14250;
+        delay = bytes*1000/17500;
         break;
     case PROGRESS_WRITE:
-        delay = bytes*1000/15000;
+        delay = bytes*1000/17500;
         break;
     case PROGRESS_READ:
-        delay = bytes*1000/35900;
+        delay = bytes*1000/43500;
         break;
     }
     usleep(delay*1000);
@@ -184,13 +184,13 @@ refresh:
                 rate = 1;
                 break;
             case PROGRESS_WRITEF:
-                rate = 14250;
+                rate = 17500;
                 break;
             case PROGRESS_WRITE:
-                rate = 15000;
+                rate = 17500;
                 break;
             case PROGRESS_READ:
-                rate = 35900;
+                rate = 43500;
                 break;
             }
         }
