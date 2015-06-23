@@ -66,6 +66,7 @@ menu: FORCE
 	fi
 	cd menu && make
 	cp menu/menu.gb .
+	rgbfix -v -t "MENU#" -l 0x33 -k "01" menu.gb
 	make check-menu
 
 $(PROGTESTINSERT): $(OBJSTESTINSERT)

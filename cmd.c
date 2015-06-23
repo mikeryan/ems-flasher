@@ -30,6 +30,8 @@
 #include <unistd.h>
 #include <sys/stat.h>
 
+#define MENUTITLE "MENU#"
+
 struct listing_rom {
     ems_size_t offset;
     struct header header;
@@ -117,7 +119,7 @@ cmd_title(int page) {
         exit(1);
 
     if (listing.count > 0 && listing.romlist[0].offset == 0 &&
-        strcmp(listing.romlist[0].header.title, "GB16M") == 0) {
+        strcmp(listing.romlist[0].header.title, MENUTITLE) == 0) {
             menuenh = listing.romlist[0].header.enhancements;
     } else {
             menuenh = -1;
@@ -356,7 +358,7 @@ cmd_write(int page, int verbose, int argc, char **argv) {
      */
     if (listing.count == 1 &&
         listing.romlist[0].offset == 0 &&
-        strcmp(listing.romlist[0].header.title, "GB16M") == 0 &&
+        strcmp(listing.romlist[0].header.title, MENUTITLE) == 0 &&
         listing.romlist[0].header.romsize == 32768) {
             if (romfiles[0].header.romsize == PAGESIZE ||
                 romfiles[0].header.enhancements != listing.romlist[0].header.enhancements) {
@@ -398,7 +400,7 @@ cmd_write(int page, int verbose, int argc, char **argv) {
         if (validate_romfile(menupath, menuromfile))
             exit(1);
 
-        if (strcmp(menuromfile->header.title, "GB16M") != 0 ||
+        if (strcmp(menuromfile->header.title, MENUTITLE) != 0 ||
             menuromfile->header.romsize != 32768) {
                 errx(1, "%s [%s] doesn't seem to be a menu ROM", menupath,
                     menuromfile->header.title);
