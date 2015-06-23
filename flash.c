@@ -174,7 +174,7 @@ flash_move(ems_size_t offset, ems_size_t size, ems_size_t origoffset) {
                     return FLASH_EUSB;
             }
 
-            if ((dest + blockofs)%ERASEBLOCKSIZE == 0)
+            if ((dest + blockofs)%ERASEBLOCKSIZE == WRITEBLOCKSIZE)
                 PROGRESS(PROGRESS_ERASE, 0);
 
             if ((progress += WRITEBLOCKSIZE)%READBLOCKSIZE == 0)
@@ -245,7 +245,7 @@ flash_write(ems_size_t offset, ems_size_t size, int slotn) {
                 return FLASH_EUSB;
         }
 
-        if ((offset + blockofs) % ERASEBLOCKSIZE == 0)
+        if ((offset + blockofs) % ERASEBLOCKSIZE == WRITEBLOCKSIZE)
             PROGRESS(PROGRESS_ERASE, 0);
 
         if ((progress += WRITEBLOCKSIZE) % READBLOCKSIZE == 0)
