@@ -20,6 +20,20 @@ struct {
 
 static struct timeval prectime;
 
+static int crprinted; // indicate if \r was just printed
+
+/**
+ * Start a new line if progression status was just printed (terminated by
+ * a carriage return (\r))
+ */
+void
+progress_newline(void) {
+    if (crprinted) {
+        putchar('\n');
+        crprinted = 0;
+    }
+}
+
 /**
  * Initialize progression
  *   - get the current time
@@ -29,6 +43,8 @@ static struct timeval prectime;
 void
 progress_start(struct updates *updates) {
     struct update *u;
+
+    crprinted = 0;
 
     updates_foreach(updates, u) {
         switch (u->cmd) {
@@ -67,6 +83,7 @@ progress_start(struct updates *updates) {
     }
 
     if (gettimeofday(&prectime, NULL) == -1) {
+        progress_newline();
         warn("gettimeofday");
         prectime.tv_sec = 0;
     }
@@ -102,8 +119,10 @@ progress(int type, ems_size_t bytes) {
     if (type == PROGRESS_ERASE) {
         progress_type[type].remain--;
     } else {
-        if (bytes != READBLOCKSIZE)
+        if (bytes != READBLOCKSIZE) {
+            progress_newline();
             warnx("internal error: progress: bytes != READBLOCKSIZE");
+        }
         progress_type[type].remain -= bytes;
     }
 
@@ -131,6 +150,7 @@ progress(int type, ems_size_t bytes) {
 #endif
 
     if (gettimeofday(&curtime, NULL) == -1) {
+        progress_newline();
         warn("gettimeofday");
         prectime.tv_sec = 0;
         goto refresh;
@@ -202,5 +222,6 @@ refresh:
     if (prectime.tv_sec != 0)
         printf(" %02d:%02d", (int)(remtime+0.99)/60, (int)(remtime+0.99)%60);
     putchar('\r');
+    crprinted = 1;
     fflush(stdout);
 }

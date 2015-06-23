@@ -42,6 +42,7 @@
 #include <stdio.h>
 #include <string.h>
 #include <signal.h>
+#include <errno.h>
 #include <err.h>
 
 #define NBSLOTS 3
@@ -56,11 +57,23 @@ static int (*flash_checkint_cb)(void);
         if (flash_progress_cb) flash_progress_cb(type, size);                  \
     } while (0)
 
+#define xwarn(fmt, ...) \
+    snprintf(flash_lasterrorstr, sizeof(flash_lasterrorstr), fmt ": %s", \
+        __VA_ARGS__, strerror(errno))
+
+#define xwarnx(...)\
+    snprintf(flash_lasterrorstr, sizeof(flash_lasterrorstr), __VA_ARGS__)
+
 void
 flash_init(void (*progress_cb)(int, ems_size_t), int (*checkint_cb)(void)) {
     flash_lastofs = -1;
     flash_progress_cb = progress_cb;
     flash_checkint_cb = checkint_cb;
+}
+
+void
+flash_setprogresscb(void (*progress_cb)(int, ems_size_t)) {
+    flash_progress_cb = progress_cb;
 }
 
 int
@@ -71,7 +84,7 @@ flash_writef(ems_size_t offset, ems_size_t size, char *path) {
     int i, r;
 
     if ((f = fopen(path, "rb")) == NULL) {
-        warn("can't open %s", path);
+        xwarn("can't open %s", path);
         return FLASH_EFILE;
     }
 
@@ -79,7 +92,7 @@ flash_writef(ems_size_t offset, ems_size_t size, char *path) {
     for (blockofs = 0; blockofs < size; blockofs += WRITEBLOCKSIZE*2) {    
         if (fread(blockbuf, 1, WRITEBLOCKSIZE*2, f) < WRITEBLOCKSIZE*2) {
             if (ferror(f)) {
-                warn("error reading %s", path);
+                xwarn("error reading %s", path);
                 fclose(f);
                 return FLASH_EFILE;
             } else break;
@@ -91,7 +104,7 @@ flash_writef(ems_size_t offset, ems_size_t size, char *path) {
         }
 
         if (CHECKINT) {
-            warnx("operation interrupted");
+            xwarnx("operation interrupted");
             return FLASH_EINTR;
         }
 
@@ -99,7 +112,7 @@ flash_writef(ems_size_t offset, ems_size_t size, char *path) {
             if ((r = ems_write(TO_ROM,
                 flash_lastofs = offset + blockofs + i*WRITEBLOCKSIZE,
                 blockbuf + i*WRITEBLOCKSIZE, WRITEBLOCKSIZE)) < 0) {
-                    warnx("write error flashing %s", path);
+                    xwarnx("write error flashing %s", path);
                     fclose(f);
                     return FLASH_EUSB;
             }
@@ -116,7 +129,7 @@ flash_writef(ems_size_t offset, ems_size_t size, char *path) {
         if ((r = ems_write(TO_ROM,
             offset + 0x100 + i*WRITEBLOCKSIZE,
             blockbuf100 + i*WRITEBLOCKSIZE, WRITEBLOCKSIZE)) < 0) {
-                warnx("write error flashing %s", path);
+                xwarnx("write error flashing %s", path);
                 fclose(f);
                 return FLASH_EUSB;
         }
@@ -125,7 +138,7 @@ flash_writef(ems_size_t offset, ems_size_t size, char *path) {
     PROGRESS(PROGRESS_WRITEF, READBLOCKSIZE);
 
     if (fclose(f) == EOF) {
-        warn("can't close %s", path);
+        xwarn("can't close %s", path);
         return FLASH_EFILE;
     }
     return 0;
@@ -145,12 +158,12 @@ flash_move(ems_size_t offset, ems_size_t size, ems_size_t origoffset) {
 
     for (remain = size; remain > 0; remain -= READBLOCKSIZE) {
         if (CHECKINT) {
-            warnx("operation interrupted");
+            xwarnx("operation interrupted");
             return FLASH_EINTR;
         }
 
         if ((r = ems_read(FROM_ROM, src, blockbuf, READBLOCKSIZE)) < 0) {
-            warnx("read error updating flash memory");
+            xwarnx("read error updating flash memory");
             return FLASH_EUSB;
         }
 
@@ -164,13 +177,13 @@ flash_move(ems_size_t offset, ems_size_t size, ems_size_t origoffset) {
             }
 
             if ((flipflop = 1-flipflop) && CHECKINT) {
-                warnx("operation interrupted");
+                xwarnx("operation interrupted");
                 return FLASH_EINTR;
             }
 
             if ((r = ems_write(TO_ROM, flash_lastofs = dest+blockofs,
                 blockbuf+blockofs, WRITEBLOCKSIZE)) < 0) {
-                    warnx("write error updating flash memory");
+                    xwarnx("write error updating flash memory");
                     return FLASH_EUSB;
             }
 
@@ -188,7 +201,7 @@ flash_move(ems_size_t offset, ems_size_t size, ems_size_t origoffset) {
     for (int i = 0; i < 2; i++) {
         if (ems_write(TO_ROM, offset+0x100+i*WRITEBLOCKSIZE,
             blockbuf100+i*WRITEBLOCKSIZE, WRITEBLOCKSIZE) < 0) {
-                warnx("write error updating flash memory");
+                xwarnx("write error updating flash memory");
                 return FLASH_EUSB;
         }
     }
@@ -208,12 +221,12 @@ flash_read(int slotn, ems_size_t size, ems_size_t offset) {
 
     for (remain = size; remain > 0; remain -= READBLOCKSIZE) {
         if (CHECKINT) {
-            warnx("operation interrupted");
+            xwarnx("operation interrupted");
             return FLASH_EINTR;
         }
 
         if ((r = ems_read(FROM_ROM, offset, block, READBLOCKSIZE)) < 0) {
-                warnx("read error updating flash memory");
+                xwarnx("read error updating flash memory");
                 return FLASH_EUSB;
         }
 
@@ -241,7 +254,7 @@ flash_write(ems_size_t offset, ems_size_t size, int slotn) {
 
         if ((r = ems_write(TO_ROM, flash_lastofs = offset + blockofs,
             buf + blockofs, WRITEBLOCKSIZE)) < 0) {
-                warnx("write error updating flash memory");
+                xwarnx("write error updating flash memory");
                 return FLASH_EUSB;
         }
 
@@ -254,7 +267,7 @@ flash_write(ems_size_t offset, ems_size_t size, int slotn) {
 
     if ((r = ems_write(TO_ROM, offset + 0x100, buf + 0x100,
         WRITEBLOCKSIZE)) < 0) {
-            warnx("write error updating flash memory");
+            xwarnx("write error updating flash memory");
             return FLASH_EUSB;
     }
 
@@ -269,7 +282,7 @@ flash_erase(ems_size_t offset) {
     int i, r;
 
     if (CHECKINT)  {
-        warnx("operation interrupted");
+        xwarnx("operation interrupted");
         return FLASH_EINTR;
     }
 
@@ -277,7 +290,7 @@ flash_erase(ems_size_t offset) {
         memset(blankbuf, 0xff, 32);
         if ((r = ems_write(TO_ROM, flash_lastofs = offset + i*32, blankbuf,
             32)) < 0) {
-                warnx("write error updating flash memory");
+                xwarnx("write error updating flash memory");
                 return FLASH_EUSB;
         }
     }
@@ -296,14 +309,14 @@ flash_delete(ems_size_t offset, int blocks) {
 
     while (blocks--) {
         if ((blocks+1)%2 == 0 && CHECKINT) {
-            warnx("operation interrupted");
+            xwarnx("operation interrupted");
             return FLASH_EINTR;
         }
 
         r = ems_write(TO_ROM, offset + 0x130 - blocks*32,
             zerobuf, 32);
         if (r < 0) {
-            warnx("flash write error (address=%"PRIuEMSSIZE")",
+            xwarnx("flash write error (address=%"PRIuEMSSIZE")",
                     offset + 0x130 - blocks*32);
             return FLASH_EUSB;
         }

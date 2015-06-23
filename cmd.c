@@ -195,8 +195,10 @@ cmd_delete(int page, int verbose, int argc, char **argv) {
         if (verbose)
             printf("Deleting ROM at bank %d: %s...\n", bank, header.title);
 
-        if (flash_delete(base + offset, 2) != 0)
+        if (flash_delete(base + offset, 2) != 0) {
+            warnx("%s", flash_lasterrorstr);
             exit(1);
+        }
     }
 }
 
@@ -209,8 +211,10 @@ cmd_format(int page, int verbose) {
 
     base = page * PAGESIZE;
     for (offset = 0; offset <= PAGESIZE - 32768; offset += 32768)
-        if (flash_delete(base + offset, 1) != 0)
+        if (flash_delete(base + offset, 1) != 0) {
+            warnx("%s", flash_lasterrorstr);
             exit(1);
+        }
 }
 
 /*
@@ -530,12 +534,14 @@ cmd_write(int page, int verbose, int argc, char **argv) {
     updates_foreach(updates, u) {
         if (verbose) {
             if (u->cmd == UPDATE_CMD_WRITEF) {
+                progress_newline();
                 printf("Writing %s [%s]...\n",
                     ((struct romfile*)u->update_writef_fileinfo)->path,
                     u->rom->header.title);
                 progress(PROGRESS_REFRESH, 0);
                 indefrag = 0;
             } else if (!indefrag) {
+                progress_newline();
                 printf("Defragmenting...\n");
                 progress(PROGRESS_REFRESH, 0);
                 indefrag = 1;
@@ -552,11 +558,13 @@ cmd_write(int page, int verbose, int argc, char **argv) {
             // Note: use ctime and it is not reliable with all OS or filesystems.
             romfile = u->update_writef_fileinfo;
             if (stat(romfile->path, &buf) == -1) {
+                progress_newline();
                 warn("can't stat %s", romfile->path);
                 r = FLASH_EFILE;
                 break;
             }
             if (difftime(buf.st_ctime, romfile->ctime) != 0) {
+                progress_newline();
                 warnx("%s has changed", romfile->path);
                 r = FLASH_EFILE;
                 break;
@@ -582,14 +590,19 @@ cmd_write(int page, int verbose, int argc, char **argv) {
             r = flash_erase(base + u->update_erase_dstofs);
             break;
         default:
+            progress_newline();
             errx(1, "internal error: bad update command (%d)", u->cmd);
         }
-        if (verbose)
-            putchar('\n');
 
-        if (r)
+        if (r) {
+            progress_newline();
+            warnx("%s", flash_lasterrorstr);
             break;
+        }
     }
+
+    progress_newline();
+    flash_setprogresscb(NULL);
 
     // Error recovery
     if (r) {
@@ -615,6 +628,7 @@ cmd_write(int page, int verbose, int argc, char **argv) {
                 err = flash_write(base + u->update_write_dstofs,
                     u->update_write_size, u->update_write_srcslot);
                 if (err) {
+                    warnx("%s", flash_lasterrorstr);
                     r = err;
                     err_update = u;
                 }           

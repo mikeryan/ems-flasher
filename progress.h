@@ -9,6 +9,7 @@ enum {
     PROGRESS_TYPESNB
 };
 
+void progress_newline(void);
 void progress_start(struct updates*);
 void progress(int, ems_size_t);
 

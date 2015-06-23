@@ -9,8 +9,10 @@
 enum {FLASH_EUSB = 1, FLASH_EFILE, FLASH_EINTR};
 
 ems_size_t flash_lastofs;
+char flash_lasterrorstr[256];
 
 void flash_init(void (*)(int, ems_size_t), int (*)(void));
+void flash_setprogresscb(void (*)(int, ems_size_t));
 int flash_writef(ems_size_t, ems_size_t, char*);
 int flash_move(ems_size_t, ems_size_t, ems_size_t);
 int flash_read(int, ems_size_t, ems_size_t);
