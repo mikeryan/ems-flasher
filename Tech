@@ -1,0 +1,47 @@
+Technical notes on the 64 Mbit "USB GB Smart Card" from EMS
+
+Composition of the cartridge
+   The cartridge is composed of 64 MBit (8 MB) of flash memory, 128 KB of
+   static RAM that is backed up by a battery and of a custom MBC5 memory
+   controller.
+
+Programming the EMS cartridge via USB
+   The device is identified by these VID:PID: 0x4670:0x9394. Note that several
+   devices from EMS share the same identifier.
+
+   Two interfaces are used: Interface 1 is the read end and Interface 2 is the
+   write end. Transfers are made in bulk.
+
+   Commands are sent on Interface 2. They have a fixed size of 9 bytes and
+   follow this format:
+      offset 0 (1 byte): Opcode
+      offset 1 (4 bytes, Big Endian):  Address (in bytes) 
+      offset 5 (4 bytes, Big Endian):  Length (in bytes) 
+
+   Opcodes:
+      0xff: read data from the flash memory
+      0x6d: read data from SRAM
+      0x57: write data to the flash memory
+      0x4d: write data to SRAM
+
+   A Write operation is followed directly by the data. The data resulting from
+   a Read operation is read from Interface 1.
+
+   The flash memory is byte addressable. Addresses range from 0 to 0x7fffff
+   (8 MB). The first page sits in the first 4 MB.
+
+   The flashing software provided by EMS reads data by chunk of 4096 bytes and
+   writes data by chunk of 32 bytes and accesses are aligned to the chunk size.
+
+   A Read operation will block if an odd number of Write operations has been
+   previously made.
+
+   The flash memory is an Intel StrataFlash J3 composed of 64 erase-blocks of
+   128 KB (1 MBit). An erase-block is erased (all the bits are set to 1) by
+   writing data at its beginning. The erasure operation takes about 1 second.
+   Each erase-block has a life of 100000 erase cycles.
+
+   It is normally not possible to write data twice to the same location
+   without erasing the target block beforehand. There is an exception: writing
+   a chunk of 32 bytes of zeros to a an already written location will have the
+   desired effect.
