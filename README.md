@@ -54,7 +54,7 @@ Running
 -------
 
 The software has three major modes of operation:
-  * write ROM to cart
+  * write ROM(s) to cart
   * read ROM from cart
   * read title of ROM on cart
 
@@ -63,7 +63,9 @@ To write use --write, to read use --read, and to get the title use
 
 Write mode will write the ROM specified on the command line to bank 1 on
 the cart. Read mode will read the entirety of bank 1 (32 megabits / 4
-megabytes) into the ROM file specified.
+megabytes) into the ROM file specified. Specifying multiple ROMs will
+cause all of the ROMs to be written to the specified bank along with a
+menu to choose from them.
 
 Title mode does not require a file argument, and will print the ROM
 title to stdout.
@@ -85,6 +87,9 @@ Examples
 ```
 # write the ROM to the cart
 ./ems-flasher --write totally_legit_rom.gb
+
+# write several ROMs to the cart
+./ems-flash --write copyright.gb infringement.gb
 
 # saves the contents of the cart into the file; print some extra info
 ./ems-flasher --verbose --read not_warez.gb

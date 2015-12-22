@@ -55,7 +55,7 @@ options_t opts = {
  * Usage
  */
 void usage(char *name) {
-    printf("Usage: %s < --read | --write > [ --verbose ] <totally_legit_rom.gb>\n", name);
+    printf("Usage: %s < --read | --write > [ --verbose ] <totally_legit_rom.gb> [<dontsteal.gb>]\n", name);
     printf("       %s --delete BANK [BANK]...\n", name);
     printf("       %s --format\n", name);
     printf("       %s --title\n", name);
@@ -64,7 +64,7 @@ void usage(char *name) {
     printf("Writes a ROM or SAV file to the EMS 64 Mbit USB flash cart\n\n");
     printf("Options:\n");
     printf("    --read                  read entire cart into file\n");
-    printf("    --write                 write ROM file to cart\n");
+    printf("    --write                 write ROM file(s) to cart\n");
     printf("    --delete                delete ROMs with the specified bank numbers\n");
     printf("    --format                delete all ROMs of the specified page\n");
     printf("    --title                 title of the ROM in both banks\n");
