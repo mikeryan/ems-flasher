@@ -23,13 +23,13 @@ http://lacklustre.net/gb/ems/
 Prerequisites
 -------------
 
-To build ems-flasher pkg-config and libusb are needed.
+To build ems-flasher pkg-config and libusb are needed. Additionally, OS
+X requires coreutils and gawk.
 
-On Mac you can install them by:
+On OS X, install the prerequisites using:
 
 ```
-sudo port install pkgconfig
-sudo port install libusb
+brew install pkg-config libusb coreutils gawk
 ```
 
 (thanks to hyarion for this info)

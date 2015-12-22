@@ -13,7 +13,20 @@ while getopts "cs" opt; do
     esac
 done
 
-od -v -Ad -tu1 -w1 | awk -vcolor=$color -vsuper=$super '
+# need to do some magic to make this portable to OS X and Linux
+AWK="awk"
+which gawk > /dev/null
+if [[ $? == 0 ]]; then
+    AWK="gawk"
+fi
+
+OD="od"
+which god > /dev/null
+if [[ $? == 0 ]]; then
+    OD="god"
+fi
+
+$OD -v -Ad -tu1 -w1 | $AWK -vcolor=$color -vsuper=$super '
 BEGIN {
     split( \
         " 206 237 102 102 204  13   0  11   3 115   0 131   0  12   0  13" \
