@@ -62,7 +62,7 @@ header_decode(struct header *header, unsigned char *raw) {
 
     for (i = 0; i < HEADER_TITLE_SIZE; i++) {
         int c = raw[HEADER_TITLE + i];
-        header->title[i] = (c >= 32 && c <= 95)?c:32;
+        header->title[i] = (c >= 32 && c <= 126)?c:32;
     }
 
     for (i = HEADER_TITLE_SIZE-1; i >= 0; i--)
