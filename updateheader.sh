@@ -15,14 +15,12 @@ done
 
 # need to do some magic to make this portable to OS X and Linux
 AWK="awk"
-which gawk > /dev/null
-if [[ $? == 0 ]]; then
+if which gawk > /dev/null; then
     AWK="gawk"
 fi
 
 OD="od"
-which god > /dev/null
-if [[ $? == 0 ]]; then
+if which god > /dev/null; then
     OD="god"
 fi
 
