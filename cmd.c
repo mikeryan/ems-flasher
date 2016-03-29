@@ -95,15 +95,17 @@ list(int page, struct listing *listing) {
     return 0;
 }
 
-static void
-printenhancements(int enh) {
-    if (enh == 0) {
-        printf("None");
-    } else {
-        if (enh & HEADER_ENH_GBC)
-            printf("Color");
-        if (enh & HEADER_ENH_SGB)
-            printf("%sSuper", enh != HEADER_ENH_SGB?" + ":"");
+static char*
+strenh(int enh) {
+    switch (enh) {
+    case HEADER_ENH_GBC | HEADER_ENH_SGB:
+        return "Color+Super";
+    case HEADER_ENH_GBC:
+        return "Color";
+    case HEADER_ENH_SGB:
+        return "SGB";
+    default:
+        return "None";
     }
 }
 
@@ -135,7 +137,7 @@ cmd_title(int page) {
             (int)((rl->offset) / 16384), HEADER_TITLE_SIZE, rl->header.title,
             rl->header.romsize >> 10);
 
-        printenhancements(rl->header.enhancements);
+        printf("%s", strenh(rl->header.enhancements));
         if (rl->header.gbc_only)
             printf(" (marked as for Game Boy Color only)");
 
@@ -152,8 +154,7 @@ cmd_title(int page) {
     putchar('\n');
     printf("Page: %d\n", page+1);
     if (menuenh >= 0) {
-            printf("Page enhancements: ");
-            printenhancements(menuenh);
+            printf("Page enhancements: %s", strenh(menuenh));
             if (!compat)
                 printf(" (some ROMs have incompatible settings)");
             putchar('\n');
