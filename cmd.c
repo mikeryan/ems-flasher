@@ -324,7 +324,7 @@ validate_romfile(char *path, struct romfile *romfile) {
 }
 
 void
-cmd_write(int page, int verbose, int argc, char **argv) {
+cmd_write(int page, int verbose, int force, int argc, char **argv) {
     struct listing listing;
     struct image image;
     ems_size_t base, freesize;
