@@ -23,7 +23,8 @@ struct header {
     ems_size_t romsize;
     enum {
         HEADER_ENH_GBC = 1,
-        HEADER_ENH_SGB = 2
+        HEADER_ENH_SGB = 2,
+        HEADER_ENH_ALL = HEADER_ENH_GBC | HEADER_ENH_SGB
     } enhancements;
     int gbc_only;
 };

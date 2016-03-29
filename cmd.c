@@ -97,6 +97,7 @@ list(int page, struct listing *listing) {
 
 static char*
 strenh(int enh) {
+    enh &= HEADER_ENH_ALL;
     switch (enh) {
     case HEADER_ENH_GBC | HEADER_ENH_SGB:
         return "Color+Super";
@@ -113,7 +114,7 @@ void
 cmd_title(int page) {
     struct listing listing;
     ems_size_t free;
-    int menuenh, compat;
+    int menuenh, incompat_enh;
 
     printf("Bank  Title             Size     Enhancements\n");
 
@@ -127,7 +128,7 @@ cmd_title(int page) {
             menuenh = -1;
     }
 
-    compat = 1; // Assume ROMs have same enh. settings than the menu
+    incompat_enh = 0;
     free = PAGESIZE;
     for (int i = 0; i < listing.count; i++) {
         struct listing_rom *rl;
@@ -143,8 +144,8 @@ cmd_title(int page) {
 
         putchar('\n');
 
-        if (rl->header.enhancements != menuenh)
-            compat = 0;
+        if (menuenh != -1 && rl->header.enhancements != menuenh)
+            incompat_enh |= rl->header.enhancements ^ menuenh;
 
         if (free < rl->header.romsize)
             errx(1, "format error: sum of ROM sizes on flash exceeds the page size");
@@ -154,10 +155,17 @@ cmd_title(int page) {
     putchar('\n');
     printf("Page: %d\n", page+1);
     if (menuenh >= 0) {
-            printf("Page enhancements: %s", strenh(menuenh));
-            if (!compat)
-                printf(" (some ROMs have incompatible settings)");
-            putchar('\n');
+        printf("Page enhancements: %s\n", strenh(menuenh));
+        printf("Compatible consoles: ");
+        if (!incompat_enh) {
+            printf("All");
+        } else {
+            printf("Classic");
+            if (incompat_enh != HEADER_ENH_ALL)
+                printf("+%s", strenh(~incompat_enh));
+            printf(" (some ROMs have incompatible enh. settings)");
+        }
+        putchar('\n');
     } else {
         printf("Menu: no menu ROM found at bank 0\n");
     }
@@ -371,7 +379,69 @@ cmd_write(int page, int verbose, int force, int argc, char **argv) {
             }
     }
 
-    /*
+    /* Abort if there is no valid menu on a non empty page */
+    if (listing.count > 0 && (listing.romlist[0].offset != 0 ||
+        strcmp(listing.romlist[0].header.title, MENUTITLE) != 0)) {
+            errx(1, "error: no valid menu ROM found at bank 0");
+    }
+
+    /* 
+     * Check compatibility of the enhancements required by the new ROMs
+     * with those of the page unless --force has been specified
+     */
+    if (!force)
+    {
+        int enh_ign_mask, enh_page, enh_incompat;
+
+        /* Determine the enhancements enabled by the page */
+        if (listing.count > 0)
+            /* non empty page: those of the first ROM in flash (the menu) */
+            enh_page = listing.romlist[0].header.enhancements;
+        else
+            /*empty page:  those of the first ROM provided in arguments */
+            enh_page = romfiles[0].header.enhancements;
+
+        /*
+         * Determine enhancements flags for which there is already a conflict
+         * on the page.
+         */
+        enh_ign_mask = 0;
+        for (int i = 0; i < listing.count; i++) {
+            int enh_rom = listing.romlist[i].header.enhancements;
+            if (enh_page != enh_rom)
+                enh_ign_mask |= enh_page ^ enh_rom;
+        }
+
+        /*
+         * Check compatibility of new ROMs ignoring enhancements in
+         * the ignore mask
+         */
+        enh_incompat = 0;
+        for (int i = 0; i < argc; i++) {
+            int enh_rom = romfiles[i].header.enhancements;
+            if ((enh_rom & ~enh_ign_mask) != (enh_page & ~enh_ign_mask)) {
+                enh_incompat |= (enh_rom & ~enh_ign_mask) ^ (enh_page & ~enh_ign_mask);
+                warnx(
+                    "%s: incompatible enhancements:"
+                    " this ROM requires a page with %s enh.",
+                    romfiles[i].path,
+                    strenh(enh_rom)
+                );
+            }
+        }
+
+        if (enh_incompat) {
+            errx(1,
+                "error: some ROMs have enhancements incompatible with this page."
+                " Insert them on a compatible page"
+                " or use --force if you don't use these consoles: %s. Page has"
+                " the following enh.: %s",
+                strenh(enh_incompat), strenh(enh_page)
+            );
+        }
+    }
+
+        /*
      * Add a menu if the page is empty and the the user doesn't want to insert
      * a 4 MB ROM.
      * The hardware enh. will be set according to the first ROM file.
