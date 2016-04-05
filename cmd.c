@@ -162,7 +162,7 @@ cmd_title(int page) {
         } else {
             printf("Classic");
             if (incompat_enh != HEADER_ENH_ALL)
-                printf("+%s", strenh(~incompat_enh));
+                printf("+%s", strenh(HEADER_ENH_NOT(incompat_enh)));
             printf(" (some ROMs have incompatible enh. settings)");
         }
         putchar('\n');
@@ -419,8 +419,8 @@ cmd_write(int page, int verbose, int force, int argc, char **argv) {
         enh_incompat = 0;
         for (int i = 0; i < argc; i++) {
             int enh_rom = romfiles[i].header.enhancements;
-            if ((enh_rom & ~enh_ign_mask) != (enh_page & ~enh_ign_mask)) {
-                enh_incompat |= (enh_rom & ~enh_ign_mask) ^ (enh_page & ~enh_ign_mask);
+            if ((enh_rom & HEADER_ENH_NOT(enh_ign_mask)) != (enh_page & HEADER_ENH_NOT(enh_ign_mask))) {
+                enh_incompat |= (enh_rom & HEADER_ENH_NOT(enh_ign_mask)) ^ (enh_page & HEADER_ENH_NOT(enh_ign_mask));
                 warnx(
                     "%s: incompatible enhancements:"
                     " this ROM requires a page with %s enh.",
