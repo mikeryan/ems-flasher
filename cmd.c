@@ -32,6 +32,69 @@
 
 #define MENUTITLE "MENU#"
 
+volatile sig_atomic_t int_state = 0;
+
+static void
+int_handler(int s) {
+    static const char msg[] = "Termination signal received.\n"; 
+    int_state = 1;
+    write(2, msg, strlen(msg));
+}
+
+static int
+checkint() {
+    return int_state;
+}
+
+struct sigaction oldsa_hup, oldsa_int, oldsa_term;
+
+void
+catchint() {
+    struct sigaction sa;
+
+    int_state = 0;
+
+    memset(&sa, 0, sizeof(sa));
+    sigemptyset(&sa.sa_mask);
+    sa.sa_handler = &int_handler;
+    sa.sa_flags = SA_RESTART;
+
+    sigaction(SIGHUP, NULL, &oldsa_hup);
+    if (oldsa_hup.sa_handler != SIG_IGN)
+        sigaction(SIGHUP, &sa, NULL);
+
+    sigaction(SIGINT, NULL, &oldsa_int);
+    if (oldsa_int.sa_handler != SIG_IGN)
+        sigaction(SIGINT, &sa, NULL);
+
+    sigaction(SIGTERM, NULL, &oldsa_term);
+    if (oldsa_term.sa_handler != SIG_IGN)
+        sigaction(SIGTERM, &sa, NULL);
+}
+
+static void
+restoreint()
+{
+    sigaction(SIGHUP, &oldsa_hup, NULL);
+    sigaction(SIGINT, &oldsa_int, NULL);
+    sigaction(SIGTERM, &oldsa_term, NULL);
+
+    if (checkint())
+        errx(1, "operation interrupted");
+}
+
+void
+blocksignals() {
+    struct sigaction sa;
+    memset(&sa, 0, sizeof(sa));
+    sigemptyset(&sa.sa_mask);
+    sa.sa_handler = SIG_IGN;
+    sigaction(SIGPIPE, &sa, NULL);
+    sigaction(SIGTSTP, &sa, NULL);
+    sigaction(SIGTTIN, &sa, NULL);
+    sigaction(SIGTTOU, &sa, NULL);
+}
+
 struct listing_rom {
     ems_size_t offset;
     struct header header;
@@ -56,6 +119,8 @@ list(int page, struct listing *listing) {
     unsigned char buf[HEADER_SIZE];
     ems_size_t base, offset;
     int r;
+
+    catchint();
 
     base = page * PAGESIZE;
 
@@ -92,6 +157,8 @@ list(int page, struct listing *listing) {
         offset += header.romsize;
     } while (offset < PAGESIZE);
 
+    restoreint();
+
     return 0;
 }
 
@@ -115,6 +182,8 @@ cmd_title(int page) {
     struct listing listing;
     ems_size_t free;
     int menuenh, incompat_enh;
+
+    blocksignals();
 
     printf("Bank  Title             Size     Enhancements\n");
 
@@ -175,6 +244,10 @@ cmd_title(int page) {
 
 void
 cmd_delete(int page, int verbose, int argc, char **argv) {
+    blocksignals();
+    catchint();
+    flash_init(NULL, checkint);
+
     for (int i = 0; i < argc; i++) {
         unsigned char rawheader[HEADER_SIZE];
         struct header header;
@@ -209,11 +282,16 @@ cmd_delete(int page, int verbose, int argc, char **argv) {
             exit(1);
         }
     }
+    restoreint();
 }
 
 void
 cmd_format(int page, int verbose) {
     ems_size_t base, offset;
+
+    blocksignals();
+    catchint();
+    flash_init(NULL, checkint);
 
     if (verbose)
         printf("Formating...\n");
@@ -224,25 +302,13 @@ cmd_format(int page, int verbose) {
             warnx("%s", flash_lasterrorstr);
             exit(1);
         }
+
+    restoreint();
 }
 
 /*
  * --write command handling
  */
-
-volatile sig_atomic_t int_state = 0;
-
-static void
-int_handler(int s) {
-    static const char msg[] = "Termination signal received.\n"; 
-    int_state = 1;
-    write(2, msg, strlen(msg));
-}
-
-static int
-checkint() {
-    return int_state;
-}
 
 struct romfile {
     struct header header;
@@ -340,6 +406,8 @@ cmd_write(int page, int verbose, int force, int argc, char **argv) {
     struct romfile *romfiles;
     struct romfile *menuromfile;
     int r;
+
+    blocksignals();
 
     if (argc == 0)
         return;
@@ -573,32 +641,13 @@ cmd_write(int page, int verbose, int force, int argc, char **argv) {
     {
     struct updates *updates;
     struct update *u;
-    struct sigaction sa, oldsa;
     int indefrag;
 
     image_update(&image, &updates);
 
-    int_state = 0;
-
-    memset(&sa, 0, sizeof(sa));
-    sigemptyset(&sa.sa_mask);
-    sa.sa_handler = &int_handler;
-    sa.sa_flags = SA_RESTART;
-
-    sigaction(SIGHUP, NULL, &oldsa);
-    if (oldsa.sa_handler != SIG_IGN)
-        sigaction(SIGHUP, &sa, NULL);
-
-    sigaction(SIGINT, NULL, &oldsa);
-    if (oldsa.sa_handler != SIG_IGN)
-        sigaction(SIGINT, &sa, NULL);
-
-    sigaction(SIGTERM, NULL, &oldsa);
-    if (oldsa.sa_handler != SIG_IGN)
-        sigaction(SIGTERM, &sa, NULL);
-
     progress_start(updates);
 
+    catchint();
     flash_init(verbose?progress:NULL, checkint);
 
     indefrag = 0;
