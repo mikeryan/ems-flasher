@@ -1,3 +1,4 @@
+#define _XOPEN_SOURCE 500
 #include <assert.h>
 #include <err.h>
 #include <errno.h>
@@ -101,11 +102,27 @@ int ems_init(void) {
     // call the cleanup when we're done
     atexit(ems_deinit);
 
+    // mask asyn signals for the thread created by libusb_init()
+    // to make sure that handlers are invoked in the main thread.
+    // Include only signals whose handler is redirected in catchint()
+#ifdef USE_PTHREAD
+    sigset_t newmask, oldmask;
+    sigemptyset(&newmask);
+    sigaddset(&newmask, SIGHUP);
+    sigaddset(&newmask, SIGINT);
+    sigaddset(&newmask, SIGTERM);
+    pthread_sigmask(SIG_BLOCK, &newmask, &oldmask);
+#endif
+
     r = libusb_init(NULL);
     if (r < 0) {
         fprintf(stderr, "failed to initialize libusb\n");
         exit(1); // pretty much hosed
     }
+
+#ifdef USE_PTHREAD
+    pthread_sigmask(SIG_SETMASK, &oldmask, NULL);
+#endif
 
     r = find_ems_device();
     if (r < 0) {
