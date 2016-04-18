@@ -10,6 +10,7 @@
 /* for sigaction() and SA_RESTART */
 #define _XOPEN_SOURCE 500
 
+#include "config.h"
 #include "ems.h"
 #include "header.h"
 #include "flash.h"

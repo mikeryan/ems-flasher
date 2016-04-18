@@ -11,6 +11,7 @@
 #include <libusb.h>
 
 #include "ems.h"
+#include "config.h"
 
 /* magic numbers! */
 #define EMS_VID 0x4670
