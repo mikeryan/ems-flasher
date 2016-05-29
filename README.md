@@ -43,36 +43,50 @@ sudo apt-get install pkg-config libusb-1.0-0-dev
 Building
 --------
 
-Build is automated by a Makefile. To build simply run the following:
-
 ```
+./config.sh --prefix=/usr
 make
+sudo make install
 ```
 
+After running `./config.sh`, make sure the installation path of the binary
+(BINDIR), the menu ROMs (DATADIR) and the manual page (MANDIR) suit you. If not,
+you must run the tool again by specifying the desired paths. Use the --help
+option to get the list of all options. If you want to try the software without
+installing it, use the --dev option. This will set the path to the menu ROMs
+to the current directory. Don't forget to execute the tool without --dev
+before the definitive installation.
 
 Running
 -------
 
-The software has three major modes of operation:
+The software has four major modes of operation:
   * write ROM(s) to cart
   * read ROM from cart
   * read title of ROM on cart
+  * delete ROMs
 
-To write use --write, to read use --read, and to get the title use
---title.
+To write use --write, to read use --read, and to get the title listing use
+--title. You can specify the page (1 or 2) with --bank PAGENB. If no page is
+specified, page 1 is assumed.
 
-Write mode will write the ROM specified on the command line to bank 1 on
-the cart. Read mode will read the entirety of bank 1 (32 megabits / 4
-megabytes) into the ROM file specified. Specifying multiple ROMs will
-cause all of the ROMs to be written to the specified bank along with a
-menu to choose from them.
+Write mode will write the ROM files specified on the command line to 
+the selected page to the cart. Read mode will read the entirety of the page
+(32 megabits / 4 megabytes) into the ROM file specified. Specifying multiple
+ROMs will cause all of the ROMs to be written to the specified bank along with a
+menu to choose from them. Some ROMs support enhancements of the Super Game Boy
+or the Game Boy Color or both. For maximum compatibility, you shouldn't mix ROMs
+with different enhancements support on the same page. However, if you don't
+intend to use a Super Game Boy or a Game Boy Color, you can mix ROMs that
+support, resp., SGB or CGB enhancements with others that don't with the --force
+option. This option is not necessary if the page already contains mixed ROMs.
 
 Title mode does not require a file argument, and will print the ROM
-title to stdout.
+title listing to stdout.
 
-BEWARE: if you give the EMS flasher a huge file for writing, it will
-continue writing past the end of the cart and do unknown amounts of
-damage. Please don't do this!
+The --delete command will delete the ROMs whose bank numbers are specified in
+parmeters.
+The --format command will delete all the ROMs located on the chosen page.
 
 Additionally, all modes take a --verbose flag for giving more output.
 You can also adjust the block size, but it is recommended you leave this
@@ -101,9 +115,8 @@ Examples
 Bugs
 ----
 
-The software only handles a single ROM in the first bank of the cart.
-Reading and writing of SRAM is not supported (yet). The commands to do
-so have been discovered and they will appear in a future version.
+In this version, the --read command dumps an entire page. It is not possible to
+dump a particular ROM.
 
 Preferably use the bug tracker found at the web site (at the top of this
 doc) to report any bugs.
