@@ -14,7 +14,8 @@ Original about
 The EMS flasher is a simple command line flasher for the 64 Mbit EMS USB
 flash cart for Game Boy.
 
-This software was written by Mike Ryan <mikeryan \at lacklustre.net>
+This software was written by Mike Ryan <mikeryan \at lacklustre.net> and others
+(see the AUTHORS file)
 
 For more information, see the web site at:
 http://lacklustre.net/gb/ems/
