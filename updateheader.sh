@@ -15,18 +15,16 @@ done
 
 # need to do some magic to make this portable to OS X and Linux
 AWK="awk"
-which gawk > /dev/null
-if [[ $? == 0 ]]; then
+if which gawk > /dev/null; then
     AWK="gawk"
 fi
 
 OD="od"
-which god > /dev/null
-if [[ $? == 0 ]]; then
+if which god > /dev/null; then
     OD="god"
 fi
 
-$OD -v -Ad -tu1 -w1 | $AWK -vcolor=$color -vsuper=$super '
+$OD -v -Ad -tu1 -w1 | LC_ALL=C $AWK -vcolor=$color -vsuper=$super '
 BEGIN {
     split( \
         " 206 237 102 102 204  13   0  11   3 115   0 131   0  12   0  13" \

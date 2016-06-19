@@ -6,6 +6,14 @@
 #define HEADER_SIZE 336
 #define HEADER_TITLE_SIZE 16
 
+enum header_enh {
+    HEADER_ENH_GBC = 1,
+    HEADER_ENH_SGB = 2,
+    HEADER_ENH_ALL = HEADER_ENH_GBC | HEADER_ENH_SGB
+};
+
+#define HEADER_ENH_NOT(x) (~(unsigned)(x)&HEADER_ENH_ALL)
+
 /*
  * struct header is a selection of decoded fields of a ROM header.
  *   title: title as it would be displayed by the menu software (only Nintendo
@@ -21,10 +29,7 @@
 struct header {
     char title[HEADER_TITLE_SIZE+1];
     ems_size_t romsize;
-    enum {
-        HEADER_ENH_GBC = 1,
-        HEADER_ENH_SGB = 2
-    } enhancements;
+    enum header_enh enhancements;
     int gbc_only;
 };
 

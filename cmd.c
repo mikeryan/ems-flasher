@@ -10,6 +10,7 @@
 /* for sigaction() and SA_RESTART */
 #define _XOPEN_SOURCE 500
 
+#include "config.h"
 #include "ems.h"
 #include "header.h"
 #include "flash.h"
@@ -31,6 +32,69 @@
 #include <sys/stat.h>
 
 #define MENUTITLE "MENU#"
+
+volatile sig_atomic_t int_state = 0;
+
+static void
+int_handler(int s) {
+    static const char msg[] = "Termination signal received.\n"; 
+    int_state = 1;
+    write(2, msg, strlen(msg));
+}
+
+static int
+checkint() {
+    return int_state;
+}
+
+struct sigaction oldsa_hup, oldsa_int, oldsa_term;
+
+void
+catchint() {
+    struct sigaction sa;
+
+    int_state = 0;
+
+    memset(&sa, 0, sizeof(sa));
+    sigemptyset(&sa.sa_mask);
+    sa.sa_handler = &int_handler;
+    sa.sa_flags = SA_RESTART;
+
+    sigaction(SIGHUP, NULL, &oldsa_hup);
+    if (oldsa_hup.sa_handler != SIG_IGN)
+        sigaction(SIGHUP, &sa, NULL);
+
+    sigaction(SIGINT, NULL, &oldsa_int);
+    if (oldsa_int.sa_handler != SIG_IGN)
+        sigaction(SIGINT, &sa, NULL);
+
+    sigaction(SIGTERM, NULL, &oldsa_term);
+    if (oldsa_term.sa_handler != SIG_IGN)
+        sigaction(SIGTERM, &sa, NULL);
+}
+
+static void
+restoreint()
+{
+    sigaction(SIGHUP, &oldsa_hup, NULL);
+    sigaction(SIGINT, &oldsa_int, NULL);
+    sigaction(SIGTERM, &oldsa_term, NULL);
+
+    if (checkint())
+        errx(1, "operation interrupted");
+}
+
+void
+blocksignals() {
+    struct sigaction sa;
+    memset(&sa, 0, sizeof(sa));
+    sigemptyset(&sa.sa_mask);
+    sa.sa_handler = SIG_IGN;
+    sigaction(SIGPIPE, &sa, NULL);
+    sigaction(SIGTSTP, &sa, NULL);
+    sigaction(SIGTTIN, &sa, NULL);
+    sigaction(SIGTTOU, &sa, NULL);
+}
 
 struct listing_rom {
     ems_size_t offset;
@@ -56,6 +120,8 @@ list(int page, struct listing *listing) {
     unsigned char buf[HEADER_SIZE];
     ems_size_t base, offset;
     int r;
+
+    catchint();
 
     base = page * PAGESIZE;
 
@@ -92,18 +158,23 @@ list(int page, struct listing *listing) {
         offset += header.romsize;
     } while (offset < PAGESIZE);
 
+    restoreint();
+
     return 0;
 }
 
-static void
-printenhancements(int enh) {
-    if (enh == 0) {
-        printf("None");
-    } else {
-        if (enh & HEADER_ENH_GBC)
-            printf("Color");
-        if (enh & HEADER_ENH_SGB)
-            printf("%sSuper", enh != HEADER_ENH_SGB?" + ":"");
+static char*
+strenh(int enh) {
+    enh &= HEADER_ENH_ALL;
+    switch (enh) {
+    case HEADER_ENH_GBC | HEADER_ENH_SGB:
+        return "Color+Super";
+    case HEADER_ENH_GBC:
+        return "Color";
+    case HEADER_ENH_SGB:
+        return "SGB";
+    default:
+        return "None";
     }
 }
 
@@ -111,7 +182,9 @@ void
 cmd_title(int page) {
     struct listing listing;
     ems_size_t free;
-    int menuenh, compat;
+    int menuenh, incompat_enh;
+
+    blocksignals();
 
     printf("Bank  Title             Size     Enhancements\n");
 
@@ -125,7 +198,7 @@ cmd_title(int page) {
             menuenh = -1;
     }
 
-    compat = 1; // Assume ROMs have same enh. settings than the menu
+    incompat_enh = 0;
     free = PAGESIZE;
     for (int i = 0; i < listing.count; i++) {
         struct listing_rom *rl;
@@ -135,14 +208,14 @@ cmd_title(int page) {
             (int)((rl->offset) / 16384), HEADER_TITLE_SIZE, rl->header.title,
             rl->header.romsize >> 10);
 
-        printenhancements(rl->header.enhancements);
+        printf("%s", strenh(rl->header.enhancements));
         if (rl->header.gbc_only)
             printf(" (marked as for Game Boy Color only)");
 
         putchar('\n');
 
-        if (rl->header.enhancements != menuenh)
-            compat = 0;
+        if (menuenh != -1 && rl->header.enhancements != menuenh)
+            incompat_enh |= rl->header.enhancements ^ menuenh;
 
         if (free < rl->header.romsize)
             errx(1, "format error: sum of ROM sizes on flash exceeds the page size");
@@ -152,11 +225,17 @@ cmd_title(int page) {
     putchar('\n');
     printf("Page: %d\n", page+1);
     if (menuenh >= 0) {
-            printf("Page enhancements: ");
-            printenhancements(menuenh);
-            if (!compat)
-                printf(" (some ROMs have incompatible settings)");
-            putchar('\n');
+        printf("Page enhancements: %s\n", strenh(menuenh));
+        printf("Compatible consoles: ");
+        if (!incompat_enh) {
+            printf("All");
+        } else {
+            printf("Classic");
+            if (incompat_enh != HEADER_ENH_ALL)
+                printf("+%s", strenh(HEADER_ENH_NOT(incompat_enh)));
+            printf(" (some ROMs have incompatible enh. settings)");
+        }
+        putchar('\n');
     } else {
         printf("Menu: no menu ROM found at bank 0\n");
     }
@@ -166,6 +245,10 @@ cmd_title(int page) {
 
 void
 cmd_delete(int page, int verbose, int argc, char **argv) {
+    blocksignals();
+    catchint();
+    flash_init(NULL, checkint);
+
     for (int i = 0; i < argc; i++) {
         unsigned char rawheader[HEADER_SIZE];
         struct header header;
@@ -200,11 +283,16 @@ cmd_delete(int page, int verbose, int argc, char **argv) {
             exit(1);
         }
     }
+    restoreint();
 }
 
 void
 cmd_format(int page, int verbose) {
     ems_size_t base, offset;
+
+    blocksignals();
+    catchint();
+    flash_init(NULL, checkint);
 
     if (verbose)
         printf("Formating...\n");
@@ -215,25 +303,13 @@ cmd_format(int page, int verbose) {
             warnx("%s", flash_lasterrorstr);
             exit(1);
         }
+
+    restoreint();
 }
 
 /*
  * --write command handling
  */
-
-volatile sig_atomic_t int_state = 0;
-
-static void
-int_handler(int s) {
-    static const char msg[] = "Termination signal received.\n"; 
-    int_state = 1;
-    write(2, msg, strlen(msg));
-}
-
-static int
-checkint() {
-    return int_state;
-}
 
 struct romfile {
     struct header header;
@@ -324,13 +400,15 @@ validate_romfile(char *path, struct romfile *romfile) {
 }
 
 void
-cmd_write(int page, int verbose, int argc, char **argv) {
+cmd_write(int page, int verbose, int force, int argc, char **argv) {
     struct listing listing;
     struct image image;
     ems_size_t base, freesize;
     struct romfile *romfiles;
     struct romfile *menuromfile;
     int r;
+
+    blocksignals();
 
     if (argc == 0)
         return;
@@ -370,7 +448,69 @@ cmd_write(int page, int verbose, int argc, char **argv) {
             }
     }
 
-    /*
+    /* Abort if there is no valid menu on a non empty page */
+    if (listing.count > 0 && (listing.romlist[0].offset != 0 ||
+        strcmp(listing.romlist[0].header.title, MENUTITLE) != 0)) {
+            errx(1, "error: no valid menu ROM found at bank 0");
+    }
+
+    /* 
+     * Check compatibility of the enhancements required by the new ROMs
+     * with those of the page unless --force has been specified
+     */
+    if (!force)
+    {
+        int enh_ign_mask, enh_page, enh_incompat;
+
+        /* Determine the enhancements enabled by the page */
+        if (listing.count > 0)
+            /* non empty page: those of the first ROM in flash (the menu) */
+            enh_page = listing.romlist[0].header.enhancements;
+        else
+            /*empty page:  those of the first ROM provided in arguments */
+            enh_page = romfiles[0].header.enhancements;
+
+        /*
+         * Determine enhancements flags for which there is already a conflict
+         * on the page.
+         */
+        enh_ign_mask = 0;
+        for (int i = 0; i < listing.count; i++) {
+            int enh_rom = listing.romlist[i].header.enhancements;
+            if (enh_page != enh_rom)
+                enh_ign_mask |= enh_page ^ enh_rom;
+        }
+
+        /*
+         * Check compatibility of new ROMs ignoring enhancements in
+         * the ignore mask
+         */
+        enh_incompat = 0;
+        for (int i = 0; i < argc; i++) {
+            int enh_rom = romfiles[i].header.enhancements;
+            if ((enh_rom & HEADER_ENH_NOT(enh_ign_mask)) != (enh_page & HEADER_ENH_NOT(enh_ign_mask))) {
+                enh_incompat |= (enh_rom & HEADER_ENH_NOT(enh_ign_mask)) ^ (enh_page & HEADER_ENH_NOT(enh_ign_mask));
+                warnx(
+                    "%s: incompatible enhancements:"
+                    " this ROM requires a page with %s enh.",
+                    romfiles[i].path,
+                    strenh(enh_rom)
+                );
+            }
+        }
+
+        if (enh_incompat) {
+            errx(1,
+                "error: some ROMs have enhancements incompatible with this page."
+                " Insert them on a compatible page"
+                " or use --force if you don't use these consoles: %s. Page has"
+                " the following enh.: %s",
+                strenh(enh_incompat), strenh(enh_page)
+            );
+        }
+    }
+
+        /*
      * Add a menu if the page is empty and the the user doesn't want to insert
      * a 4 MB ROM.
      * The hardware enh. will be set according to the first ROM file.
@@ -502,32 +642,13 @@ cmd_write(int page, int verbose, int argc, char **argv) {
     {
     struct updates *updates;
     struct update *u;
-    struct sigaction sa, oldsa;
     int indefrag;
 
     image_update(&image, &updates);
 
-    int_state = 0;
-
-    memset(&sa, 0, sizeof(sa));
-    sigemptyset(&sa.sa_mask);
-    sa.sa_handler = &int_handler;
-    sa.sa_flags = SA_RESTART;
-
-    sigaction(SIGHUP, NULL, &oldsa);
-    if (oldsa.sa_handler != SIG_IGN)
-        sigaction(SIGHUP, &sa, NULL);
-
-    sigaction(SIGINT, NULL, &oldsa);
-    if (oldsa.sa_handler != SIG_IGN)
-        sigaction(SIGINT, &sa, NULL);
-
-    sigaction(SIGTERM, NULL, &oldsa);
-    if (oldsa.sa_handler != SIG_IGN)
-        sigaction(SIGTERM, &sa, NULL);
-
     progress_start(updates);
 
+    catchint();
     flash_init(verbose?progress:NULL, checkint);
 
     indefrag = 0;

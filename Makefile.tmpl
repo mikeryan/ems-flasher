@@ -1,11 +1,4 @@
-DATADIR=/usr/local/share/$(PROG)
-MENUDIR=$(DATADIR)
-MANDIR = /usr/share/man
-
 MENUVARS = menu.gb menucs.gb menuc.gb menus.gb
-
-CFLAGS  = -g -Wall -Werror -pedantic -std=c99 \
-	-DMENUDIR="\"${MENUDIR}\""
 
 PROG = ems-flasher
 OBJS = ems.o main.o header.o cmd.o progress.o flash.o insert.o update.o
@@ -17,26 +10,29 @@ OBJSEMSFILE = ems-file.o main.o header.o cmd.o progress.o flash.o insert.o \
 PROGTESTINSERT = test-insertupdate
 OBJSTESTINSERT = test-insertupdate.o insert.o update.o
 
-all: $(PROG) check-menu
+all: $(PROG) menuvars
 
-$(PROG)-dev: $(PROG)
-	rm -f cmd.o
-	make $(PROG) MENUDIR=. DATADIR=.
+ems.o: ems.h config.h
+ems-file.o: ems.h
+main.o: ems.h cmd.h header.h
+cmd.o: config.h ems.h header.h flash.h image.h insert.h update.h cmd.h progress.h
+flash.o: ems.h flash.h progress.h
+insert.o: ems.h image.h insert.h
+update.o: update.h
+header.o: header.h
+progress.o: ems.h progress.h flash.h
+test-insertupdate.o: ems.h image.h insert.h update.h
 
-$(PROGEMSFILE)-dev: $(PROGEMSFILE)
-	rm -f cmd.o
-	make $(PROGEMSFILE) MENUDIR=. DATADIR=.
-
-$(PROG): $(OBJS)
-	$(CC) -o $(PROG) $(OBJS) `pkg-config --libs libusb-1.0`
+$(PROG): $(OBJS) menuvars
+	$(CC)  $(CFLAGS) -o $@ $(OBJS) $(LDFLAGS) $(LIBUSB_LDFLAGS) $(PTHREAD_LDFLAGS)
 
 ems.o: ems.c
-	$(CC) $(CFLAGS) `pkg-config --cflags libusb-1.0` -c $<
+	$(CC) -c $(CFLAGS) $(LIBUSB_CFLAGS) -o $@ ems.c
 
-$(PROGEMSFILE): $(OBJSEMSFILE)
-	$(CC) -o $(PROGEMSFILE) $(OBJSEMSFILE)
+$(PROGEMSFILE): $(OBJSEMSFILE) menuvars
+	$(CC) $(CFLAGS) $(LDFLAGS) -o $@ $(OBJSEMSFILE)
 
-check-menu: $(MENUVARS)
+menuvars: $(MENUVARS)
 
 menu.gb:
 	@echo "Please install a menu:"
@@ -55,7 +51,7 @@ menus.gb: menu.gb
 
 menu-orig:
 	cp menu.gb.orig menu.gb
-	make check-menu
+	make menuvars
 
 menu: FORCE
 	@if ! test -e menu/Makefile; then \
@@ -67,19 +63,19 @@ menu: FORCE
 	cd menu && make
 	cp menu/menu.gb .
 	rgbfix -v -t "MENU#" -l 0x33 -k "01" menu.gb
-	make check-menu
+	make menuvars
 
 $(PROGTESTINSERT): $(OBJSTESTINSERT)
-	$(CC) -o $(PROGTESTINSERT) $(OBJSTESTINSERT)
+	$(CC) $(CFLAGS) $(LDFLAGS) -o $@ $(OBJSTESTINSERT)
 
 test-insert: FORCE $(PROGTESTINSERT)
 	./tests.sh
 
-install: $(PROG) check-menu
-	install ems-flasher /usr/local/bin
-	mkdir -p "${DATADIR}"
-	install menu.gb menucs.gb menuc.gb menus.gb "${DATADIR}"
-	install ems-flasher.1 $(MANDIR)/man1/
+install: $(PROG) menuvars
+	install ems-flasher "$(BINDIR)"
+	mkdir -p "$(DATADIR)"
+	install $(MENUVARS) "$(DATADIR)"
+	install ems-flasher.1 "$(MANDIR)"/man1/
 
 clean:
 	rm -f $(PROG) $(OBJS) $(PROGEMSFILE) $(OBJSEMSFILE)
@@ -91,6 +87,7 @@ clean-menu:
 
 clean-all: clean clean-menu
 
-.SUFFIXES: .c .o
+.SUFFIXES:
+.SUFFIXES: .o .c
 
 FORCE:

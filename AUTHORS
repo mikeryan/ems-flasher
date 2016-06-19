@@ -12,3 +12,7 @@ David Wendt JR. <dcrkid@yahoo.com>
     - SRAM write
     - full ROM header read
     - checksum validation
+
+Christophe Staiesse <chastai@skynet.be>
+
+    - multiple ROMs support

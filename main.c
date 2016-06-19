@@ -35,6 +35,7 @@ typedef struct _options_t {
     int space;
     int rem_argc;
     char **rem_argv;
+    int force;
 } options_t;
 
 // defaults
@@ -45,6 +46,7 @@ options_t opts = {
     .file               = NULL,
     .bank               = 0,
     .space              = 0,
+    .force              = 0,
 };
 
 // default blocksizes
@@ -107,6 +109,7 @@ void get_options(int argc, char **argv) {
             {"bank", 1, 0, 'b'},
             {"save", 0, 0, 'S'},
             {"rom", 0, 0, 'R'},
+            {"force", 0, 0, 'F'},
             {0, 0, 0, 0}
         };
 
@@ -172,6 +175,9 @@ void get_options(int argc, char **argv) {
             case 'R':
                 if (opts.space != 0) goto mode_error2;
                 opts.space = FROM_ROM;
+                break;
+            case 'F':
+                opts.force = 1;
                 break;
             default:
                 usage(argv[0]);
@@ -325,7 +331,7 @@ int main(int argc, char **argv) {
         if (opts.verbose)
             printf("Successfully wrote %u from %s\n", offset, opts.file);
     } else if (opts.mode == MODE_WRITE && space == TO_ROM) {
-        cmd_write(opts.bank, opts.verbose, opts.rem_argc, opts.rem_argv);
+        cmd_write(opts.bank, opts.verbose, opts.force, opts.rem_argc, opts.rem_argv);
     } else if (opts.mode == MODE_DELETE) {
         cmd_delete(opts.bank, opts.verbose, opts.rem_argc, opts.rem_argv);
     } else if (opts.mode == MODE_FORMAT) {
