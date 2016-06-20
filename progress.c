@@ -1,4 +1,4 @@
-#define _BSD_SOURCE
+#define _XOPEN_SOURCE 500 /* for usleep() */
     
 #include <stdio.h>
 #include <unistd.h>
