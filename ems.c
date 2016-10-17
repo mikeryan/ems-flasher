@@ -177,7 +177,7 @@ static void ems_command_init(
  *  count   number of bytes to read
  *
  * Returns:
- *  >= 0    number of bytes read (will always == count)
+ *  >= 0    number of bytes read (error if != count)
  *  < 0     error sending command or reading data
  */
 int ems_read(int from, uint32_t offset, unsigned char *buf, size_t count) {
@@ -220,7 +220,7 @@ int ems_read(int from, uint32_t offset, unsigned char *buf, size_t count) {
  *  count   number of bytes out of buf to write
  *
  * Returns:
- *  >= 0    number of bytes written (will always == count)
+ *  >= 0    number of bytes written (error if != count)
  *  < 0     error writing data
  */
 int ems_write(int to, uint32_t offset, unsigned char *buf, size_t count) {
@@ -242,7 +242,7 @@ int ems_write(int to, uint32_t offset, unsigned char *buf, size_t count) {
 
     r = libusb_bulk_transfer(devh, EMS_EP_SEND, write_buf, count + 9, &transferred, 0);
     if (r == 0)
-        r = transferred; // return number of bytes sent on success
+        r = transferred>=9?transferred-9:0; // number of bytes sent on success
 
     free(write_buf);
 
