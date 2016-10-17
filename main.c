@@ -289,7 +289,7 @@ int main(int argc, char **argv) {
 
         while ((offset + blocksize) <= limits[space]) {
             r = ems_read(space, offset + base, buf, blocksize);
-            if (r < 0) {
+            if (r != blocksize) {
                 warnx("can't read %d bytes at offset %u\n", blocksize, offset);
                 return 1;
             }
@@ -318,7 +318,7 @@ int main(int argc, char **argv) {
 
         while ((offset + blocksize) <= limits[space] && fread(buf, blocksize, 1, write_file) == 1) {
             r = ems_write(space, offset + base, buf, blocksize);
-            if (r < 0) {
+            if (r != blocksize) {
                 warnx("can't write %d bytes at offset %u", blocksize, offset);
                 return 1;
             }

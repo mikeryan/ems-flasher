@@ -130,7 +130,7 @@ list(int page, struct listing *listing) {
     offset = 0;
     do {
         r = ems_read(FROM_ROM, base + offset, buf, HEADER_SIZE);
-        if (r < 0) {
+        if (r != HEADER_SIZE) {
             warnx("flash read error (address=%"PRIuEMSSIZE")",
                 base + offset);
             return 1;
@@ -264,7 +264,7 @@ cmd_delete(int page, int verbose, int argc, char **argv) {
         offset = bank * 16384;
 
         r = ems_read(FROM_ROM, base + offset, rawheader, HEADER_SIZE);
-        if (r < 0) {
+        if (r != HEADER_SIZE) {
             errx(1, "flash read error (address=%"PRIuEMSSIZE")",
                 offset);
         }
