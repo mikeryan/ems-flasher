@@ -83,22 +83,21 @@ testdefrag() {
         continue
     fi
 
-    (
-    trap '
-        if [ $? -ne 0 ]; then
-            (echo "TEST FAILED"; cat "$tmpd/image" "$tmpd/new") >&2
-        fi
-    ' EXIT
-
     size=$((freerommaxsize*2))
     while [ $size -le $freetotal ]; do
-        echo "Testing defrag() with $image and a ROM of $((size>>10)) KB" >&2
+        msg="ok $count - testing defrag() with $image and a ROM of $((size>>10)) KB"
         printf "0\t\t$size\n" > "$tmpd/new"
-        cat "$tmpd/image" "$tmpd/new" |
+        if cat "$tmpd/image" "$tmpd/new" |
             PAGESIZE=$PAGESIZE ./test-insertupdate.sh >/dev/null
+        then
+            echo "$msg"
+        else
+            echo "not $msg"
+            cat "$tmpd/image" "$tmpd/new"
+        fi
         size=$((size*2))
+        count=$((count+1))
     done
-    )
 }
 
 ### Test the defrag function of insert.awk ###
@@ -129,6 +128,8 @@ awk -vPAGESIZE=$((256<<10)) '
     }
 ' > "$tmpd/images"
 
+count=1
+
 while read image; do
    testdefrag $image $((256<<10))
 done < "$tmpd/images"
@@ -142,4 +143,4 @@ done
 
 testdefrag $image $((4<<20))
 
-echo "All tests passed"
+echo "1..$((count-1))"

@@ -5,11 +5,8 @@ OBJS = ems.o main.o header.o cmd.o updates.o progress.o flash.o insert.o \
        update.o
 
 PROGEMSFILE = ems-flasher-file
-OBJSEMSFILE = ems-file.o main.o header.o cmd.o progress.o flash.o insert.o \
+OBJSEMSFILE = ems-file.o main.o header.o cmd.o updates.o progress.o flash.o insert.o \
               update.o
-
-PROGTESTINSERT = test-insertupdate
-OBJSTESTINSERT = test-insertupdate.o insert.o update.o
 
 all: $(PROG) menuvars
 
@@ -24,7 +21,6 @@ insert.o: ems.h image.h insert.h
 update.o: update.h
 header.o: header.h
 progress.o: ems.h progress.h flash.h
-test-insertupdate.o: ems.h image.h insert.h update.h
 
 $(PROG): $(OBJS) menuvars
 	$(CC)  $(CFLAGS) -o $@ $(OBJS) $(LDFLAGS) $(LIBUSB_LDFLAGS) $(PTHREAD_LDFLAGS)
@@ -68,11 +64,8 @@ menu: FORCE
 	rgbfix -v -t "MENU#" -l 0x33 -k "01" menu.gb
 	make menuvars
 
-$(PROGTESTINSERT): $(OBJSTESTINSERT)
-	$(CC) $(CFLAGS) $(LDFLAGS) -o $@ $(OBJSTESTINSERT)
-
-test-insert: FORCE $(PROGTESTINSERT)
-	./tests.sh
+test: FORCE ems-flasher
+	cd tests && make test
 
 install: $(PROG) menuvars
 	mkdir -p $(BINDIR)
@@ -83,13 +76,13 @@ install: $(PROG) menuvars
 
 clean:
 	rm -f $(PROG) $(OBJS) $(PROGEMSFILE) $(OBJSEMSFILE)
-	rm -f $(PROGTESTINSERT) $(OBJSTESTINSERT)
 
 clean-menu:
 	rm -f $(MENUVARS)
 	cd menu && make clean
 
 clean-all: clean clean-menu
+	cd tests && make clean
 
 .SUFFIXES:
 .SUFFIXES: .o .c
