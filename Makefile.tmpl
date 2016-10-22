@@ -1,7 +1,8 @@
 MENUVARS = menu.gb menucs.gb menuc.gb menus.gb
 
 PROG = ems-flasher
-OBJS = ems.o main.o header.o cmd.o progress.o flash.o insert.o update.o
+OBJS = ems.o main.o header.o cmd.o updates.o progress.o flash.o insert.o \
+       update.o
 
 PROGEMSFILE = ems-flasher-file
 OBJSEMSFILE = ems-file.o main.o header.o cmd.o progress.o flash.o insert.o \
@@ -15,7 +16,9 @@ all: $(PROG) menuvars
 ems.o: ems.h config.h
 ems-file.o: ems.h
 main.o: ems.h cmd.h header.h
-cmd.o: config.h ems.h header.h flash.h image.h insert.h update.h cmd.h progress.h
+cmd.o: config.h ems.h header.h updates.h flash.h image.h insert.h update.h \
+       cmd.h progress.h
+updates.o: header.h cmd.h update.h flash.h progress.h
 flash.o: ems.h flash.h progress.h
 insert.o: ems.h image.h insert.h
 update.o: update.h
