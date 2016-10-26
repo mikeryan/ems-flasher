@@ -4,10 +4,10 @@
 
 #include <err.h>
 
-#include "ems.h"
-#include "image.h"
-#include "insert.h"
-#include "update.h"
+#include "../ems.h"
+#include "../image.h"
+#include "../insert.h"
+#include "../update.h"
 
 void dumpimage(struct image *);
 

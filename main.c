@@ -6,8 +6,8 @@
 #include <string.h>
 
 #include "ems.h"
-#include "cmd.h"
 #include "header.h"
+#include "cmd.h"
 
 // don't forget to bump this :P
 #define VERSION "0.04"
