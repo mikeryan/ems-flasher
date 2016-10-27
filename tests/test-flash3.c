@@ -25,12 +25,45 @@ ems_size_t read_error_ofs;
 ems_size_t write_error_ofs;
 int error_returned;
 
+enum {
+    RETVALKIND_FIRST = 1,
+    RETVALKIND_MINUS_1 = RETVALKIND_FIRST,
+    RETVALKIND_0,
+    RETVALKIND_COUNT_MINUS_1,
+    RETVALKIND_LAST = RETVALKIND_COUNT_MINUS_1
+};
+
+static int retvalkind;
+
+#define foreach_retvalkind() \
+    for (retvalkind = RETVALKIND_FIRST; \
+         retvalkind <= RETVALKIND_LAST; \
+         retvalkind++)
+
+static int
+gen_ems_rw_errval(size_t count) {
+    switch(retvalkind) {
+    case RETVALKIND_MINUS_1:
+        return -1;
+    case RETVALKIND_0:
+        return 0;
+    case RETVALKIND_COUNT_MINUS_1:
+        if (count > 0)
+            return count-1;
+        else
+            return -1;
+    default:
+        fprintf(stderr, "internal error: unknow retvalkind");
+        abort();
+    }
+}
+
 int
 ems_write(int to, uint32_t offset, unsigned char *buf, size_t count) {
     TEST_ASSERT(error_returned == 0);
     if (write_error_ofs == offset) {
         error_returned = 1;
-        return -1;
+        return gen_ems_rw_errval(count);
     }
     return count;
 }
@@ -40,7 +73,7 @@ ems_read(int from, uint32_t offset, unsigned char *buf, size_t count) {
     TEST_ASSERT(error_returned == 0);
     if (read_error_ofs == offset) {
         error_returned = 1;
-        return -1;
+        return gen_ems_rw_errval(count);
     }
     return count;
 }
@@ -140,19 +173,22 @@ int
 main(int argc, char **argv) {    
     test_init(argc, argv, setup, NULL);
 
-    TEST(test_write1);
-    TEST(test_write2);
-    TEST(test_write3);
-    TEST(test_write4);
-    TEST(test_move1);
-    TEST(test_move2);
-    TEST(test_move3);
-    TEST(test_writef1);
-    TEST(test_writef2);
     TEST(test_writef3);
-    TEST(test_read);
-    TEST(test_erase);
-    TEST(test_delete);
+
+    foreach_retvalkind() {
+        TEST(test_write1);
+        TEST(test_write2);
+        TEST(test_write3);
+        TEST(test_write4);
+        TEST(test_move1);
+        TEST(test_move2);
+        TEST(test_move3);
+        TEST(test_writef1);
+        TEST(test_writef2);
+        TEST(test_read);
+        TEST(test_erase);
+        TEST(test_delete);
+    }
 
     test_done();
 }
