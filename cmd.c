@@ -510,25 +510,30 @@ cmd_write(int page, int verbose, int force, int argc, char **argv) {
      */
     if (listing.count == 0 && romfiles[0].header.romsize < PAGESIZE) {
         struct romfile *romf;
-        char *menupath;
+        char menupath[1024];
+        char *menudir;
 
         if (verbose)
             printf("Loading the menu ROM...");
 
         romf = &romfiles[0];
 
+        if ((menudir = getenv("MENUDIR")) == NULL)
+            menudir = MENUDIR;
+
+        strncpy(menupath, menudir, sizeof(menupath));
         switch (romf->header.enhancements & (HEADER_ENH_GBC | HEADER_ENH_SGB)) {
         case HEADER_ENH_GBC | HEADER_ENH_SGB:
-            menupath = MENUDIR"/menucs.gb";
+            strncat(menupath, "/menucs.gb", sizeof(menupath));
             break;
         case HEADER_ENH_GBC:
-            menupath = MENUDIR"/menuc.gb";
+            strncat(menupath, "/menuc.gb", sizeof(menupath));
             break;
         case HEADER_ENH_SGB:
-            menupath = MENUDIR"/menus.gb";
+            strncat(menupath, "/menus.gb", sizeof(menupath));
             break;
         default:
-            menupath = MENUDIR"/menu.gb";
+            strncat(menupath, "/menu.gb", sizeof(menupath));
         }
 
         if ((menuromfile = malloc(sizeof(*menuromfile))) == NULL)
