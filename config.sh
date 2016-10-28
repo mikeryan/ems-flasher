@@ -10,16 +10,14 @@ while [ $# -ne 0 ]; do
     --bindir) shift; BINDIR=$1;;
     --datadir) shift; DATADIR=$1;;
     --mandir) shift; MANDIR=$1;;
-    --dev) DATADIR=`pwd`;;
     *) cat >&2 << 'EOT'
 config.sh [ --prefix PREFIX ] [ --bindir BINDIR ] [ --datadir DATADIR ]
-          [ --mandir MANDIR ] [ --dev ]
+          [ --mandir MANDIR ]
 Generate config.h and Makefile
  --prefix  default prefix for the installation directories (/usr/local)
  --bindir  installation directory of the executables ($PREFIX/bin)
  --datadir installation directory of the menu ROMs ($PREFIX/share/ems-flasher)
  --mandir  installation directory of the manual pages ($PREFIX/share/man)
- --dev     set DATADIR to the current directory
 EOT
        exit 1
     ;;

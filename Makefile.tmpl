@@ -1,10 +1,10 @@
 MENUVARS = menu.gb menucs.gb menuc.gb menus.gb
 
-PROG = ems-flasher
+PROG = ems-flasher-real
 OBJS = ems.o main.o header.o cmd.o updates.o progress.o flash.o insert.o \
        update.o
 
-PROGEMSFILE = ems-flasher-file
+PROGEMSFILE = ems-flasher-file-real
 OBJSEMSFILE = ems-file.o main.o header.o cmd.o updates.o progress.o flash.o insert.o \
               update.o
 
@@ -22,12 +22,14 @@ update.o: update.h
 header.o: header.h
 progress.o: ems.h progress.h flash.h
 
+ems-flasher: $(PROG)
 $(PROG): $(OBJS) menuvars
 	$(CC)  $(CFLAGS) -o $@ $(OBJS) $(LDFLAGS) $(LIBUSB_LDFLAGS) $(PTHREAD_LDFLAGS)
 
 ems.o: ems.c
 	$(CC) -c $(CFLAGS) $(LIBUSB_CFLAGS) -o $@ ems.c
 
+ems-flasher-file: $(PROGEMSFILE)
 $(PROGEMSFILE): $(OBJSEMSFILE) menuvars
 	$(CC) $(CFLAGS) $(LDFLAGS) -o $@ $(OBJSEMSFILE)
 
@@ -69,7 +71,7 @@ test: FORCE ems-flasher
 
 install: $(PROG) menuvars
 	mkdir -p $(BINDIR)
-	install ems-flasher "$(BINDIR)"
+	install ems-flasher-real "$(BINDIR)"/ems-flasher
 	mkdir -p "$(DATADIR)"
 	install $(MENUVARS) "$(DATADIR)"
 	install ems-flasher.1 "$(MANDIR)"/man1/

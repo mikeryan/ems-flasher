@@ -1,0 +1,5 @@
+#!/bin/sh
+
+dir=$(cd "$(dirname "$0")" && pwd) || exit
+
+MENUDIR=$dir "$dir"/ems-flasher-file-real "$@"
