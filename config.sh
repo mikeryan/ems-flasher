@@ -46,14 +46,16 @@ then
     exit 1
 fi
 
-tmp_conf=`mktemp` || exit
+#tmp_conf=`mktemp` || exit
+tmp_conf=`mktemp 2>/dev/null || mktemp -t 'emsflasher'` || exit
 
 cat > "$tmp_conf" <<EOT
 #ifndef EMS_CONFIG_H
 #define EMS_CONFIG_H
 EOT
 
-tmp_c=`mktemp` || exit
+#tmp_c=`mktemp` || exit
+tmp_c=`mktemp 2>/dev/null || mktemp -t 'emsflasher'` || exit
 cat <<EOT > "$tmp_c.c"
 #include <stdio.h>
 #include <libusb.h>
