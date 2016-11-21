@@ -51,12 +51,12 @@ sudo make install
 ```
 
 After running `./config.sh`, make sure the installation path of the binary
-(BINDIR), the menu ROMs (DATADIR) and the manual page (MANDIR) suit you. If not,
-you must run the tool again by specifying the desired paths. Use the --help
-option to get the list of all options. If you want to try the software without
-installing it, use the --dev option. This will set the path to the menu ROMs
-to the current directory. Don't forget to execute the tool without --dev
-before the definitive installation.
+(BINDIR), the menu ROMs (DATADIR) and the manual page (MANDIR) suit you. If
+not, you must run the tool again by specifying the desired paths. Use the
+--help option to get the list of all options. If ems-flasher is ran from the
+build directory, it will use the menu ROMs located in the same directory, not
+the one selected with `config.sh` so you can use the software without
+installing it.
 
 Running
 -------
@@ -95,6 +95,9 @@ to the default of 4096 bytes for writing and 32 bytes for reading (used
 by the Windows software).
 
 For a full list of options, run the command with the --help flag.
+
+The MENUDIR environment variable may used to override the location of the menu
+ROMs selected by `config.sh`.
 
 Examples
 --------
