@@ -524,16 +524,16 @@ cmd_write(int page, int verbose, int force, int argc, char **argv) {
         strncpy(menupath, menudir, sizeof(menupath));
         switch (romf->header.enhancements & (HEADER_ENH_GBC | HEADER_ENH_SGB)) {
         case HEADER_ENH_GBC | HEADER_ENH_SGB:
-            strncat(menupath, "/menucs.gb", sizeof(menupath));
+            strncat(menupath, "/menucs.gb", sizeof(menupath) - strlen(menupath) - 1);
             break;
         case HEADER_ENH_GBC:
-            strncat(menupath, "/menuc.gb", sizeof(menupath));
+            strncat(menupath, "/menuc.gb", sizeof(menupath) - strlen(menupath) - 1);
             break;
         case HEADER_ENH_SGB:
-            strncat(menupath, "/menus.gb", sizeof(menupath));
+            strncat(menupath, "/menus.gb", sizeof(menupath) - strlen(menupath) - 1);
             break;
         default:
-            strncat(menupath, "/menu.gb", sizeof(menupath));
+            strncat(menupath, "/menu.gb", sizeof(menupath) - strlen(menupath) - 1);
         }
 
         if ((menuromfile = malloc(sizeof(*menuromfile))) == NULL)
