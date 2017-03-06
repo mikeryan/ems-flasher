@@ -82,10 +82,8 @@ restoreint()
     sigaction(SIGINT, &oldsa_int, NULL);
     sigaction(SIGTERM, &oldsa_term, NULL);
 
-    if (checkint()) {
-        warnx("operation interrupted");
+    if (checkint())
         kill(0, int_sig);
-    }
 }
 
 void
