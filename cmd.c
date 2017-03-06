@@ -34,12 +34,13 @@
 
 #define MENUTITLE "MENU#"
 
-volatile sig_atomic_t int_state = 0;
+volatile sig_atomic_t int_state = 0, int_sig = 0;
 
 static void
 int_handler(int s) {
     static const char msg[] = "Termination signal received.\n"; 
     int_state = 1;
+    int_sig = s;
     write(2, msg, strlen(msg));
 }
 
@@ -74,15 +75,17 @@ catchint() {
         sigaction(SIGTERM, &sa, NULL);
 }
 
-static void
+void
 restoreint()
 {
     sigaction(SIGHUP, &oldsa_hup, NULL);
     sigaction(SIGINT, &oldsa_int, NULL);
     sigaction(SIGTERM, &oldsa_term, NULL);
 
-    if (checkint())
-        errx(1, "operation interrupted");
+    if (checkint()) {
+        warnx("operation interrupted");
+        kill(0, int_sig);
+    }
 }
 
 void

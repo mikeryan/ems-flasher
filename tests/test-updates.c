@@ -60,6 +60,9 @@ mkromfile() {
 void
 catchint(){}
 
+void
+restoreint(){}
+
 static struct update*
 update_writef(ems_size_t offset, ems_size_t size, struct romfile *romfile) { 
     struct update *u = emalloc(sizeof(*u));

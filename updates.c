@@ -152,7 +152,9 @@ apply_updates(int page, int verbose, struct updates *updates) {
                     u->rom->header.title);
             }
         }
-        return 1;
     }
-    return 0;
+
+    restoreint();
+
+    return !!r;
 }
