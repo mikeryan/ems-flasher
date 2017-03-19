@@ -61,7 +61,7 @@ menu: FORCE
 		     " git submodule update'."; \
 		exit 1; \
 	fi
-	cd menu && make
+	cd menu && make clean && make MKTILES_OPTS=--stdasc
 	cp menu/menu.gb .
 	rgbfix -v -t "MENU#" -l 0x33 -k "01" menu.gb
 	make menuvars
