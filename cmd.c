@@ -317,6 +317,65 @@ cmd_format(int page, int verbose) {
 }
 
 /*
+ * --restore and --dump commands handling
+ */
+
+void
+cmd_restore(int page, int verbose, char *path, int to) {
+    struct progress_totals totals = {0};
+    struct stat buf;
+    ems_size_t base, size;
+
+    if (to == TO_ROM) {
+        base = page * PAGESIZE;
+        size = PAGESIZE;
+        totals.erase = PAGESIZE / ERASEBLOCKSIZE;
+        totals.writef= size;
+    } else {
+        base = 0;
+        size = SRAMSIZE;
+        totals.writef= size;
+    }
+
+    if (stat(path, &buf) == -1)
+        err(1, "can't stat %s", path);
+    if (buf.st_size != size)
+        errx(1, "file has an invalid size");
+
+    progress_start(totals);
+
+    blocksignals();
+    catchint();
+    flash_init(verbose?progress:NULL, checkint);
+    if (flash_writef_to(to, base, size, path))
+        errx(1, "%s", flash_lasterrorstr);
+    restoreint();
+}
+
+void
+cmd_dump(int page, int verbose, char *path, int from) {
+    struct progress_totals totals = {0};
+    ems_size_t base, size;
+
+    if (from == FROM_ROM) {
+        base = page * PAGESIZE;
+        size = PAGESIZE;
+        totals.read = PAGESIZE;
+    } else {
+        base = 0;
+        size = SRAMSIZE;
+        totals.read = SRAMSIZE;
+    }
+    progress_start(totals);
+    blocksignals();
+    catchint();
+    flash_init(verbose?progress:NULL, checkint);
+    if (flash_readf_from(from, path, size, base))
+        errx(1, "%s", flash_lasterrorstr);
+    restoreint();
+}
+
+/*
  * --write command handling
  */
 
