@@ -281,7 +281,9 @@ int main(int argc, char **argv) {
     }
 
     // read the ROM and save it into the file
-    if (opts.mode == MODE_DUMP) {
+    if (opts.mode == MODE_READ) {
+        cmd_read(opts.bank, opts.verbose, opts.rem_argc, opts.rem_argv);
+    } else if (opts.mode == MODE_DUMP) {
         cmd_dump(opts.bank, opts.verbose, opts.file, space);
     } else if (opts.mode == MODE_RESTORE) {
         cmd_restore(opts.bank, opts.verbose, opts.file, space);
