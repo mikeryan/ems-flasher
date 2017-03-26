@@ -77,7 +77,7 @@ flash_setprogresscb(void (*progress_cb)(int, ems_size_t)) {
 }
 
 int
-flash_writef(ems_size_t offset, ems_size_t size, char *path) {
+flash_writef_to(int to, ems_size_t offset, ems_size_t size, char *path) {
     unsigned char blockbuf[WRITEBLOCKSIZE*2], blockbuf100[WRITEBLOCKSIZE*2];
     ems_size_t blockofs, progress;
     FILE *f;
@@ -98,7 +98,7 @@ flash_writef(ems_size_t offset, ems_size_t size, char *path) {
             } else break;
         }
 
-        if (blockofs == 0x100) {
+        if (to == TO_ROM && blockofs == 0x100) {
             memcpy(blockbuf100, blockbuf, WRITEBLOCKSIZE*2);
             continue;
         }
@@ -110,31 +110,33 @@ flash_writef(ems_size_t offset, ems_size_t size, char *path) {
 
         for (i = 0; i < 2; i++) {
             flash_lastofs = offset + blockofs + i*WRITEBLOCKSIZE;
-            r = ems_write(TO_ROM, flash_lastofs, blockbuf + i*WRITEBLOCKSIZE,
-                    WRITEBLOCKSIZE);
+            r = ems_write(to, flash_lastofs, blockbuf + i*WRITEBLOCKSIZE,
+                          WRITEBLOCKSIZE);
             if (r != WRITEBLOCKSIZE) {
-                    xwarnx("write error flashing %s", path);
-                    fclose(f);
-                    return FLASH_EUSB;
+                xwarnx("write error flashing %s", path);
+                fclose(f);
+                return FLASH_EUSB;
             }
         }
 
-        if ((offset + blockofs)%ERASEBLOCKSIZE == 0)
+        if (to == TO_ROM && (offset + blockofs)%ERASEBLOCKSIZE == 0)
             PROGRESS(PROGRESS_ERASE, 0);
 
         if ((progress += WRITEBLOCKSIZE*2)%READBLOCKSIZE == 0)
             PROGRESS(PROGRESS_WRITEF, READBLOCKSIZE);
     }
 
-    for (i = 0; i < 2; i++) {
-        r = ems_write(TO_ROM,
-                      offset + 0x100 + i*WRITEBLOCKSIZE,
-                      blockbuf100 + i*WRITEBLOCKSIZE,
-                      WRITEBLOCKSIZE);
-        if (r != WRITEBLOCKSIZE) {
+    if (to == TO_ROM) {
+        for (i = 0; i < 2; i++) {
+            r = ems_write(to,
+                          offset + 0x100 + i*WRITEBLOCKSIZE,
+                          blockbuf100 + i*WRITEBLOCKSIZE,
+                          WRITEBLOCKSIZE);
+            if (r != WRITEBLOCKSIZE) {
                 xwarnx("write error flashing %s", path);
                 fclose(f);
                 return FLASH_EUSB;
+            }
         }
     }
 
@@ -144,6 +146,53 @@ flash_writef(ems_size_t offset, ems_size_t size, char *path) {
         xwarn("can't close %s", path);
         return FLASH_EFILE;
     }
+    return 0;
+}
+
+int
+flash_writef(ems_size_t offset, ems_size_t size, char *path) {
+    return flash_writef_to(TO_ROM, offset, size, path);
+}
+
+int
+flash_readf_from(int from, char *path, ems_size_t size, ems_size_t offset) {
+    unsigned char buf[READBLOCKSIZE];
+    ems_size_t blockofs;
+    FILE *save_file = fopen(path, "w");
+    int r;
+
+    if (save_file == NULL) {
+        xwarnx("can't open %s for writing", path);
+        return FLASH_EFILE;
+    }
+
+    for (blockofs = offset; blockofs + READBLOCKSIZE <= offset + size;
+        blockofs += READBLOCKSIZE) {
+        if (CHECKINT) {
+            xwarnx("operation interrupted");
+            return FLASH_EINTR;
+        }
+
+        r = ems_read(from, blockofs, buf, READBLOCKSIZE);
+        if (r != READBLOCKSIZE) {
+            xwarnx("read error dumping flash memory");
+            return FLASH_EUSB;
+        }
+
+        r = fwrite(buf, READBLOCKSIZE, 1, save_file);
+        if (r != 1) {
+            xwarnx("error writing %s", path);
+            return FLASH_EFILE;
+        }
+
+        PROGRESS(PROGRESS_READ, READBLOCKSIZE);
+    }
+
+    if (fclose(save_file) == EOF) {
+        xwarn("can't close %s", path);
+        return FLASH_EFILE;
+    }
+
     return 0;
 }
 
