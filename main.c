@@ -12,11 +12,7 @@
 // don't forget to bump this :P
 #define VERSION "0.04"
 
-// one bank is 32 megabits
-#define BANK_SIZE 0x400000
-#define SRAM_SIZE 0x020000
-
-const int limits[3] = {0, BANK_SIZE, SRAM_SIZE};
+const int limits[3] = {0, PAGESIZE, SRAMSIZE};
 
 // operation mode
 #define MODE_READ   1
@@ -251,7 +247,7 @@ int main(int argc, char **argv) {
     // we'll need a buffer one way or another
     int blocksize = opts.blocksize;
     uint32_t offset = 0;
-    uint32_t base = opts.bank * BANK_SIZE;
+    uint32_t base = opts.bank * PAGESIZE;
     if (opts.verbose)
         printf("base address is 0x%X\n", base);
     

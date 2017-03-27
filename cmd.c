@@ -207,7 +207,7 @@ cmd_title(int page) {
 
         rl = &listing.romlist[i];
         printf("%3d   %-*s  %4"PRIuEMSSIZE" KB  ",
-            (int)((rl->offset) / 16384), HEADER_TITLE_SIZE, rl->header.title,
+            (int)((rl->offset) / BANKSIZE), HEADER_TITLE_SIZE, rl->header.title,
             rl->header.romsize >> 10);
 
         printf("%s", strenh(rl->header.enhancements));
@@ -262,7 +262,7 @@ cmd_delete(int page, int verbose, int argc, char **argv) {
 
         arg = argv[i];
         bank = atoi(arg); //TODO: proper bank number validation
-        offset = bank * 16384;
+        offset = bank * BANKSIZE;
 
         r = ems_read(FROM_ROM, base + offset, rawheader, HEADER_SIZE);
         if (r != HEADER_SIZE) {
