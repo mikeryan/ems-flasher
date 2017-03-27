@@ -29,12 +29,43 @@
 int
 apply_updates(int page, int verbose, struct updates *updates) {
     struct update *u;
+    struct progress_totals totals = {0};
     ems_size_t base;
     int indefrag, r;
 
     base = page * PAGESIZE;
 
-    progress_start(updates);
+    updates_foreach(updates, u) {
+        switch (u->cmd) {
+        case UPDATE_CMD_WRITEF:
+            if (u->update_writef_dstofs%ERASEBLOCKSIZE == 0)
+                totals.erase += (u->update_writef_size + ERASEBLOCKSIZE-1)
+                                    /ERASEBLOCKSIZE;
+            totals.writef += u->update_writef_size;
+            break;
+        case UPDATE_CMD_MOVE:
+            if (u->update_move_dstofs%ERASEBLOCKSIZE == 0)
+                totals.erase += (u->update_move_size + ERASEBLOCKSIZE-1)
+                                    /ERASEBLOCKSIZE;
+            totals.write += u->update_move_size;
+            totals.read += u->update_move_size;
+            break;
+        case UPDATE_CMD_WRITE:
+            if (u->update_write_dstofs%ERASEBLOCKSIZE == 0)
+                totals.erase += (u->update_write_size + ERASEBLOCKSIZE-1)
+                                    /ERASEBLOCKSIZE;
+            totals.write += u->update_write_size;
+            break;
+        case UPDATE_CMD_READ:
+            totals.read += u->update_read_size;
+            break;
+        case UPDATE_CMD_ERASE:
+            totals.erase++;
+            break;
+        }
+    }
+
+    progress_start(totals);
 
     catchint();
     flash_init(verbose?progress:NULL, checkint);

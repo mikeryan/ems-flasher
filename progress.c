@@ -41,40 +41,13 @@ progress_newline(void) {
  *     (see flash.c, under "Progress status").
  */
 void
-progress_start(struct updates *updates) {
-    struct update *u;
-
+progress_start(struct progress_totals totals) {
     crprinted = 0;
 
-    updates_foreach(updates, u) {
-        switch (u->cmd) {
-        case UPDATE_CMD_WRITEF:
-            if (u->update_writef_dstofs%ERASEBLOCKSIZE == 0)
-                progress_type[PROGRESS_ERASE].total += (u->update_writef_size +
-                    ERASEBLOCKSIZE-1)/ERASEBLOCKSIZE;
-            progress_type[PROGRESS_WRITEF].total += u->update_writef_size;
-            break;
-        case UPDATE_CMD_MOVE:
-            if (u->update_move_dstofs%ERASEBLOCKSIZE == 0)
-                progress_type[PROGRESS_ERASE].total += (u->update_move_size +
-                     ERASEBLOCKSIZE-1)/ERASEBLOCKSIZE;
-            progress_type[PROGRESS_WRITE].total += u->update_move_size;
-            progress_type[PROGRESS_READ].total += u->update_move_size;
-            break;
-        case UPDATE_CMD_WRITE:
-            if (u->update_write_dstofs%ERASEBLOCKSIZE == 0)
-                progress_type[PROGRESS_ERASE].total += (u->update_write_size +
-                    ERASEBLOCKSIZE-1)/ERASEBLOCKSIZE;
-            progress_type[PROGRESS_WRITE].total += u->update_write_size;
-            break;
-        case UPDATE_CMD_READ:
-            progress_type[PROGRESS_READ].total += u->update_read_size;
-            break;
-        case UPDATE_CMD_ERASE:
-            progress_type[PROGRESS_ERASE].total++;
-            break;
-        }
-    }
+    progress_type[PROGRESS_ERASE].total = totals.erase;
+    progress_type[PROGRESS_WRITEF].total = totals.writef;
+    progress_type[PROGRESS_WRITE].total = totals.write;
+    progress_type[PROGRESS_READ].total = totals.read;
 
     for (int i = 0; i < PROGRESS_TYPESNB; i++) {
         progress_type[i].remain = progress_type[i].total;
