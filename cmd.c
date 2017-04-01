@@ -257,11 +257,18 @@ cmd_delete(int page, int verbose, int argc, char **argv) {
         char *arg;
         ems_size_t offset, base;
         int r, bank;
+        long l;
+        char *p;
 
         base = page * PAGESIZE;
 
         arg = argv[i];
-        bank = atoi(arg); //TODO: proper bank number validation
+        l = strtol(arg, &p, 10);
+        if (p == arg || *p != '\0'  || l < 0 || l >= PAGESIZE/BANKSIZE) {
+            warnx("--delete argument %d (%s): invalid bank number", i+1, arg);
+            continue;
+        }
+        bank = l;
         offset = bank * BANKSIZE;
 
         r = ems_read(FROM_ROM, base + offset, rawheader, HEADER_SIZE);
