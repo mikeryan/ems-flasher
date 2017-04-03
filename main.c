@@ -72,7 +72,7 @@ void usage(char *name) {
     printf("    --format                delete all ROMs of the specified page\n");
     printf("    --title                 title of the ROM in both banks\n");
     printf("    --verbose               displays more information\n");
-    printf("    --bank <num>            select cart bank (1 or 2)\n");
+    printf("    --page <num>            select cart page (1 or 2)\n");
     printf("    --save                  force write to SRAM\n");
     printf("    --rom                   force write to Flash ROM\n");
     printf("\n");
@@ -107,6 +107,7 @@ void get_options(int argc, char **argv) {
             {"format", 0, 0, 'f'},
             {"blocksize", 1, 0, 's'},
             {"bank", 1, 0, 'b'},
+            {"page", 1, 0, 'b'},
             {"save", 0, 0, 'S'},
             {"rom", 0, 0, 'R'},
             {"force", 0, 0, 'F'},
