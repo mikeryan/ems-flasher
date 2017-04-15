@@ -55,29 +55,36 @@ options_t opts = {
  * Usage
  */
 void usage(char *name) {
-    printf("Usage: %s < --read | --write > [ --verbose ] <totally_legit_rom.gb> [<dontsteal.gb>]\n", name);
-    printf("       %s --delete BANK [BANK]...\n", name);
-    printf("       %s --format\n", name);
-    printf("       %s --title\n", name);
-    printf("       %s --version\n", name);
-    printf("       %s --help\n", name);
-    printf("Writes a ROM or SAV file to the EMS 64 Mbit USB flash cart\n\n");
-    printf("Options:\n");
-    printf("    --read                  read entire cart into file\n");
-    printf("    --write                 write ROM file(s) to cart\n");
-    printf("    --dump                  dump an entire page of SRAM or flash"
-                                        "to a file\n");
-    printf("    --restore               restore a dump taken by --dump\n");
-    printf("    --delete                delete ROMs with the specified bank numbers\n");
-    printf("    --format                delete all ROMs of the specified page\n");
-    printf("    --title                 title of the ROM in both banks\n");
-    printf("    --verbose               displays more information\n");
-    printf("    --page <num>            select cart page (1 or 2)\n");
-    printf("    --save                  force write to SRAM\n");
-    printf("    --rom                   force write to Flash ROM\n");
+    printf("Usage: %s [ OPTION... ] COMMAND [ ARG... ]\n", name);
     printf("\n");
-    printf("You MUST supply exactly one of --read, --write, or --title\n");
-    printf("Reading or writing with a file ending in .sav will write to SRAM.\n");
+    printf("Options:\n");
+    printf(" --force              force writing of ROMs from different models "
+           "of Game Boy\n");
+    printf(" --verbose            displays more information and a progress "
+           "bar\n");
+    printf(" --page PAGE          select cart page (1 or 2).\n");
+    printf(" --save               force restore/dump to/from SRAM\n");
+    printf(" --rom                force restore/dump to/from Flash\n");
+    printf("\n");
+    printf("Commands:\n");
+    printf(" --read BANK:FILE...  read ROMs with the specified banks to "
+           "files\n");
+    printf(" --write FILE...      write ROM file(s) to cart\n");
+    printf(" --dump               dump an entire page of Flash or SRAM to "
+           "a file\n");
+    printf(" --restore            restore an entire page of Flash or SRAM "
+           "to a file\n");
+    printf(" --delete BANK...     delete ROMs with the specified banks\n");
+    printf(" --format             delete all ROMs of the specified page\n");
+    printf(" --title              list page content\n");
+    printf(" --version            print version number\n");
+    printf(" --help               show this help\n");
+    printf("\n");
+    printf("You MUST supply exactly one command.\n");
+    printf("ROMs specified in --read and --delete are designated by the bank "
+           "number printed\nby the --title command.\n");
+    printf("Dumping or restoring with a file ending in .sav will read/write to "
+           "SRAM.\n");
     printf("To select between ROM and SRAM, use ONE of the --save / --rom options.\n");
     printf("\n");
     printf("Written by Mike Ryan <mikeryan@lacklustre.net> and others\n");

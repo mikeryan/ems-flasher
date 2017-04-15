@@ -68,31 +68,38 @@ The software has four major modes of operation:
   * delete ROMs
 
 To write use --write, to read use --read, and to get the title listing use
---title. You can specify the page (1 or 2) with --bank PAGENB. If no page is
+--title. You can specify the page (1 or 2) with --page PAGENB. If no page is
 specified, page 1 is assumed.
 
-Write mode will write the ROM files specified on the command line to 
-the selected page to the cart. Read mode will read the entirety of the page
-(32 megabits / 4 megabytes) into the ROM file specified. Specifying multiple
-ROMs will cause all of the ROMs to be written to the specified bank along with a
-menu to choose from them. Some ROMs support enhancements of the Super Game Boy
-or the Game Boy Color or both. For maximum compatibility, you shouldn't mix ROMs
-with different enhancements support on the same page. However, if you don't
-intend to use a Super Game Boy or a Game Boy Color, you can mix ROMs that
-support, resp., SGB or CGB enhancements with others that don't with the --force
-option. This option is not necessary if the page already contains mixed ROMs.
+Write mode will write the ROM files specified on the command line to the
+selected page to the cart. Specifying multiple ROMs will cause all of the ROMs
+to be written to the specified page along with a menu to choose from them.
+If you intend to use the card on a Super Game Boy or a Game Boy Color, you
+should isolate, resp., the Super Game Boy ROMs or the Game Boy Color ROMS on a
+same page and put the other ROMs on the other page. E.g., if you own a Game Boy
+Color, you could put all the Game Boy Color ROMs in page 1 and the Super Game
+Boy and Classic Game Boy ROMs in the other. Use --force to write ROMs from
+different models on the same page. This option is not necessary if the page
+already contains mixed ROMs.
 
-Title mode does not require a file argument, and will print the ROM
-title listing to stdout.
+Read mode will read the ROMs specified on the command line from the specified
+page into files. ROMs are identified by the number of their first bank as
+printed by the --title command.
+
+It is also possible to backup an entire flash page or the Save RAM to a file
+with the --dump command. The command --restore can be used to restore an image
+taken with --dump back to the card. If these commands must apply on the Save
+RAM, use the --save option or end the filename by ".sav". Note that the Save
+RAM is not paged.
+
+Title mode does not require a file argument, and will print the ROM title
+listing to stdout.
 
 The --delete command will delete the ROMs whose bank numbers are specified in
-parmeters.
+parameters.
 The --format command will delete all the ROMs located on the chosen page.
 
 Additionally, all modes take a --verbose flag for giving more output.
-You can also adjust the block size, but it is recommended you leave this
-to the default of 4096 bytes for writing and 32 bytes for reading (used
-by the Windows software).
 
 For a full list of options, run the command with the --help flag.
 
@@ -107,10 +114,10 @@ Examples
 ./ems-flasher --write totally_legit_rom.gb
 
 # write several ROMs to the cart
-./ems-flash --write copyright.gb infringement.gb
+./ems-flasher --write copyright.gb infringement.gb
 
 # saves the contents of the cart into the file; print some extra info
-./ems-flasher --verbose --read not_warez.gb
+./ems-flasher --verbose --dump not_warez.gb
 
 # print out the title
 ./ems-flasher --title
@@ -118,9 +125,6 @@ Examples
 
 Bugs
 ----
-
-In this version, the --read command dumps an entire page. It is not possible to
-dump a particular ROM.
 
 Preferably use the bug tracker found at the web site (at the top of this
 doc) to report any bugs.
