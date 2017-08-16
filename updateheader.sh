@@ -24,7 +24,9 @@ if which god > /dev/null; then
     OD="god"
 fi
 
-$OD -v -Ad -tu1 -w1 | LC_ALL=C $AWK -vcolor=$color -vsuper=$super '
+$OD -v -Ad -tu1 |
+    $AWK '{ o=0; for (i = 2; i <= NF; i++) print $1 + o++, $i }' |
+        LC_ALL=C $AWK -vcolor=$color -vsuper=$super '
 BEGIN {
     split( \
         " 206 237 102 102 204  13   0  11   3 115   0 131   0  12   0  13" \
@@ -32,8 +34,6 @@ BEGIN {
         " 187 187 103  99 110  14 236 204 221 220 153 159 187 185  51  62",
         logo)
 }
-
-$2 == "" {next}
 
 { out = $2 }
 
