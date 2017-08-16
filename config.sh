@@ -46,17 +46,15 @@ then
     exit 1
 fi
 
-#tmp_conf=`mktemp` || exit
-tmp_conf=`mktemp 2>/dev/null || mktemp -t 'emsflasher'` || exit
+tmpd=`mktemp -d 2>/dev/null || mktemp -d -t 'ems-flasher'` || exit
+trap 'rm -r "$tmpd"' EXIT
 
-cat > "$tmp_conf" <<EOT
+cat > "$tmpd/conf" <<EOT
 #ifndef EMS_CONFIG_H
 #define EMS_CONFIG_H
 EOT
 
-#tmp_c=`mktemp` || exit
-tmp_c=`mktemp 2>/dev/null || mktemp -t 'emsflasher'` || exit
-cat <<EOT > "$tmp_c.c"
+cat <<EOT > "$tmpd/test_libpthread.c"
 #include <stdio.h>
 #include <libusb.h>
 int main() {
@@ -64,22 +62,32 @@ int main() {
 	return 0;
 }
 EOT
-$CC $CFLAGS $libusb_cflags "$tmp_c.c" $libusb_ldflags -o "$tmp_c" || exit
+
 if
-    ldd "$tmp_c" | grep -q libpthread
+    ! $CC $CFLAGS $libusb_cflags "$tmpd/test_libpthread.c" $libusb_ldflags \
+        -o "$tmpd/test_libpthread" 2>"$tmpd/err"
+then
+    cat "$tmpd/err" >&2
+    exit 1
+fi
+
+ldd "$tmpd/test_libpthread" > "$tmpd/lddout" || exit
+
+if
+    grep -q libpthread "$tmpd/lddout"
 then
     echo "$libusb seems to use libpthread"
     pthread_ldflags="-lpthread"
-    echo "#define USE_PTHREAD" >> "$tmp_conf"
+    echo "#define USE_PTHREAD" >> "$tmpd/conf"
 else
     echo "$libusb doesn't seem to use libpthread. Fine."
 fi
 
-echo "#define MENUDIR \"$DATADIR\"" >> "$tmp_conf"
+echo "#define MENUDIR \"$DATADIR\"" >> "$tmpd/conf"
 
-echo '#endif' >> "$tmp_conf"
+echo '#endif' >> "$tmpd/conf"
 if ! cmp -s "$tmp_conf" config.h; then
-    mv "$tmp_conf" config.h
+    mv "$tmpd/conf" config.h
 fi
 
 cat > Makefile << EOT

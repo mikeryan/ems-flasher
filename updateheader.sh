@@ -6,6 +6,7 @@
 #
 # Used in the Makefile when generating the menu files.
 
+unset color super
 while getopts "cs" opt; do
     case $opt in
     c)  color=1;;
@@ -15,12 +16,12 @@ done
 
 # need to do some magic to make this portable to OS X and Linux
 AWK="awk"
-if which gawk > /dev/null; then
+if which gawk >/dev/null 2>&1; then
     AWK="gawk"
 fi
 
 OD="od"
-if which god > /dev/null; then
+if which god >/dev/null 2>&1; then
     OD="god"
 fi
 
