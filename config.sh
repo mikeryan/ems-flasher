@@ -4,20 +4,28 @@ libusb=libusb-1.0
 CC=${CC:-cc}
 CFLAGS=${CFLAGS:--g -Wall -Werror -pedantic -std=c99}
 
+unset noudevrules
 while [ $# -ne 0 ]; do
     case $1 in
     --prefix) shift; PREFIX=$1;;
     --bindir) shift; BINDIR=$1;;
     --datadir) shift; DATADIR=$1;;
     --mandir) shift; MANDIR=$1;;
+    --udevrulesdir) shift; UDEVRULESDIR=$1;;
+    --no-udevrules) noudevrules=1;;
     *) cat >&2 << 'EOT'
 config.sh [ --prefix PREFIX ] [ --bindir BINDIR ] [ --datadir DATADIR ]
-          [ --mandir MANDIR ]
+          [ --mandir MANDIR ] [ --udevrulesdir UDEVRULESDIR ]
+          [ --no-udevrules ]
 Generate config.h and Makefile
- --prefix  default prefix for the installation directories (/usr/local)
- --bindir  installation directory of the executables ($PREFIX/bin)
- --datadir installation directory of the menu ROMs ($PREFIX/share/ems-flasher)
- --mandir  installation directory of the manual pages ($PREFIX/share/man)
+ --prefix       default prefix for the installation directories (/usr/local)
+ --bindir       installation directory of the executables ($PREFIX/bin)
+ --datadir      installation directory of the menu ROMs
+                ($PREFIX/share/ems-flasher)
+ --mandir       installation directory of the manual pages ($PREFIX/share/man)
+ --udevrulesdir installation directory of the udev rules ensuring access to
+                users to the USB device (/lib/udev/rules.d)
+ --no-udevrules don't install the udev rules
 EOT
        exit 1
     ;;
@@ -29,6 +37,17 @@ PREFIX=${PREFIX:-/usr/local}
 BINDIR=${BINDIR:-$PREFIX/bin}
 DATADIR=${DATADIR:-$PREFIX/share/ems-flasher}
 MANDIR=${MANDIR:-$PREFIX/share/man}
+if [ -z "$noudevrules" ]  && [ "$(uname -s)" = "Linux" ]; then
+    UDEVRULESDIR=${UDEVRULESDIR:-/lib/udev/rules.d}
+    if ! [ -d "$UDEVRULESDIR" ]; then
+      echo "Can't find the udev rules directory." \
+           "Specify it with --udevrulesdir or disable installation" \
+           "of the udev rules with -no-udevrules" >&2
+      exit 1
+    fi
+else
+    unset UDEVRULESDIR
+fi
 
 cat <<EOT
 CC=$CC
@@ -36,6 +55,7 @@ CFLAGS=$CFLAGS
 BINDIR=$BINDIR
 DATADIR=$DATADIR
 MANDIR=$MANDIR
+UDEVRULESDIR=$UDEVRULESDIR
 EOT
 
 if
@@ -99,5 +119,6 @@ PTHREAD_LDFLAGS = $pthread_ldflags
 BINDIR = $BINDIR
 DATADIR = $DATADIR
 MANDIR = $MANDIR
+UDEVRULESDIR = $UDEVRULESDIR
 EOT
 cat Makefile.tmpl >>Makefile

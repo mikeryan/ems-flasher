@@ -1,4 +1,5 @@
 MENUVARS = menu.gb menucs.gb menuc.gb menus.gb
+UDEVRULES = 50_ems_gb_flash.rules
 
 PROG = ems-flasher-real
 OBJS = ems.o main.o header.o cmd.o updates.o progress.o flash.o insert.o \
@@ -69,7 +70,13 @@ menu: FORCE
 test: FORCE ems-flasher
 	cd tests && make test
 
-install: $(PROG) menuvars
+install-udevrules:
+	@if test -n '$(UDEVRULESDIR)'; then \
+	    cp '$(UDEVRULES)' '$(UDEVRULESDIR)' && \
+	    udevadm control --reload-rules; \
+        fi
+
+install: $(PROG) menuvars install-udevrules
 	mkdir -p $(BINDIR)
 	install ems-flasher-real "$(BINDIR)"/ems-flasher
 	mkdir -p "$(DATADIR)"
