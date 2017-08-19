@@ -45,6 +45,10 @@ static int find_ems_device(void) {
     int i = 0;
     int retval = 0;
 
+#define INSTALLUDEVMSG "Try running as root/sudo or update udev rules " \
+                       "(check Building and Installating instructions " \
+                       "in the README.md file for more info).\n"
+
     num_devices = libusb_get_device_list(NULL, &device_list);
     if (num_devices >= 0) {
         for (; i < num_devices; ++i) {
@@ -63,7 +67,7 @@ static int find_ems_device(void) {
                         fprintf(stderr, "Failed to open device (libusb error: %s).\n", libusb_error_name(retval));
 #ifdef __linux__                      
                         if (retval == LIBUSB_ERROR_ACCESS) {
-                            fprintf(stderr, "Try running as root/sudo or update udev rules (check the FAQ for more info).\n");
+                            fprintf(stderr, INSTALLUDEVMSG);
                         }
 #endif
                     }
@@ -74,7 +78,9 @@ static int find_ems_device(void) {
             }
         }
         if (i == num_devices) {
-            fprintf(stderr, "Could not find device, is it plugged in?\n");
+            fprintf(stderr, "Could not find device, is it plugged in?\n"
+                            "Or it's may be a permission issue. "
+                            INSTALLUDEVMSG);
         }
         libusb_free_device_list(device_list, 1);
         device_list = NULL;

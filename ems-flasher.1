@@ -1,4 +1,4 @@
-.Dd April 16, 2017
+.Dd August 18, 2017
 .Dt EMS-FLASHER 1
 .Os
 .Sh NAME
@@ -13,6 +13,9 @@
 The
 .Nm
 utility reads data from or writes data to a EMS 64 Mbit USB Game Boy cartridge.
+See
+.Sx "THE EMS CARTRIDGE"
+for details about the cartridge itself.
 .Sh OPTIONS
 .Bl -tag -width x
 .It Fl Fl page Ar num
@@ -41,18 +44,10 @@ Display more information and a progress bar.
 .Sh COMMANDS
 .Bl -tag -width x
 .It Fl Fl write Ar romfile ...
-Add ROMs to the selected page.
-.br
-If you intend to use the card on a Super Game Boy or a Game Boy Color,
-you should isolate, resp., the Super Game Boy ROMs or the Game Boy Color ROMS
-on a same page and put the other ROMs on the other page.
-E.g. if you own a Game Boy Color, you could put all the Game Boy Color ROMs in
-page 1 and the Super Game Boy and Classic Game Boy ROMs in the other.
-Use
-.Fl Fl force
-to write ROMs from different models on the same page.
-.It Fl Fl read Ar bank:romfile ...
-Read ROMs from the selected page.
+Add ROMs to the selected page. See
+.Sx MIXING ROMS OF DIFFERENT MODELS
+for the rules to follow to mix ROMs targetting different models of the
+console.
 .It Fl Fl dump Ar file
 Backup an entire flash page or the SRAM to a file. The source can be
 selected by
@@ -82,6 +77,52 @@ and
 ROMs are identified by the number of their first bank, which is printed by the
 .Fl Fl title
 command.
+.Sh THE EMS CARTRIDGE
+.Pp
+The cartridge is composed of 8 MB (megabytes) of flash memory,
+128 KB (kilobytes) of
+static RAM that is backed up by a battery and of a MBC5-like memory controller.
+.Pp
+The flash memory is splitted into two pages of 4 MB (megabytes) each.
+128 ROMs of 32 KB can fit in a page.
+.Pp
+The static RAM is not paged and there is no partitioning mechanism that would
+allow it to be shared by multiple ROMs. That means when a ROM save data to
+the SRAM, it will likely corrupt previous data placed by another ROM.
+.Pp
+Many ROMs should work flawlessly but others may experiment crashes or other
+issues due to the fact that the memory controller of the EMS cartridge doesn't
+emulate the MBC5 perfectly and that the chip is not fully backward-compatible
+with previous versions.
+.Pp
+See
+.Lk http://blog.gg8.se/gameboyprojects/week09/EMS_FAQ.txt
+for details on programming the memory controler of the EMS cartridge.
+.Sh MIXING ROMS OF DIFFERENT MODELS
+.Pp
+Each ROM has a mode set in their header to signal a Game Boy Color
+or a Super Game Boy console
+if it must be run in compatibility mode, i.e., with the behaviours of an
+original Game Boy or with the enhancements offered by the console (wich present
+some incompatibilities with the original console).
+.Pp
+On the EMS cartridge, only one mode can be set per page. All ROMs of a page
+will be run with that mode regardless the mode of the ROMs.
+.Pp
+The mode is set at the time of writing the first ROM of an empty page.
+.Pp
+The original Game Boy disregard this flag and ROMs can be mixed and run as
+long as they are compatible with the console.
+However, on other models,
+you can't mix, on the same page, ROMs targetting the original Game Boy
+with others supporting enhancements of the host console.
+In other words, if you intend to use the card on a Super Game Boy or
+a Game Boy Color, you should isolate, resp., the Super Game Boy ROMs or
+the Game Boy Color ROMS on a same page and put the other ROMs on the other page.
+E.g. if you own a Game Boy Color, you could put all the Game Boy Color ROMs in
+page 1 and the Super Game Boy and Classic Game Boy ROMs in the other
+(using
+.Fl Fl force ) .
 .Sh EXIT STATUS
 .Ex -std ems-flasher
 .Sh EXAMPLES
