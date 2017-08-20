@@ -16,6 +16,9 @@ void restoreint();
 void cmd_title(int);
 void cmd_delete(int, int, int, char**);
 void cmd_format(int, int);
+void cmd_restore(int, int, char*, int);
+void cmd_dump(int, int, char*, int);
 void cmd_write(int, int, int, int, char**);
+void cmd_read(int, int, int, char**);
 
 #endif /* EMS_CMD_H */

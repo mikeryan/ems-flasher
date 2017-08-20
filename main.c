@@ -20,6 +20,8 @@ const int limits[3] = {0, PAGESIZE, SRAMSIZE};
 #define MODE_TITLE  3
 #define MODE_DELETE 4
 #define MODE_FORMAT 5
+#define MODE_RESTORE 6
+#define MODE_DUMP 7
 
 /* options */
 typedef struct _options_t {
@@ -53,30 +55,37 @@ options_t opts = {
  * Usage
  */
 void usage(char *name) {
-    printf("Usage: %s < --read | --write > [ --verbose ] <totally_legit_rom.gb> [<dontsteal.gb>]\n", name);
-    printf("       %s --delete BANK [BANK]...\n", name);
-    printf("       %s --format\n", name);
-    printf("       %s --title\n", name);
-    printf("       %s --version\n", name);
-    printf("       %s --help\n", name);
-    printf("Writes a ROM or SAV file to the EMS 64 Mbit USB flash cart\n\n");
+    printf("Usage: %s [ OPTION... ] COMMAND [ ARG... ]\n", name);
+    printf("\n");
     printf("Options:\n");
-    printf("    --read                  read entire cart into file\n");
-    printf("    --write                 write ROM file(s) to cart\n");
-    printf("    --delete                delete ROMs with the specified bank numbers\n");
-    printf("    --format                delete all ROMs of the specified page\n");
-    printf("    --title                 title of the ROM in both banks\n");
-    printf("    --verbose               displays more information\n");
-    printf("    --bank <num>            select cart bank (1 or 2)\n");
-    printf("    --save                  force write to SRAM\n");
-    printf("    --rom                   force write to Flash ROM\n");
+    printf(" --force              force writing of ROMs from different models "
+           "of Game Boy\n");
+    printf(" --verbose            displays more information and a progress "
+           "bar\n");
+    printf(" --page PAGE          select cart page (1 or 2).\n");
+    printf(" --save               force restore/dump to/from SRAM\n");
+    printf(" --rom                force restore/dump to/from Flash\n");
     printf("\n");
-    printf("You MUST supply exactly one of --read, --write, or --title\n");
-    printf("Reading or writing with a file ending in .sav will write to SRAM.\n");
+    printf("Commands:\n");
+    printf(" --read BANK:FILE...  read ROMs with the specified banks to "
+           "files\n");
+    printf(" --write FILE...      write ROM file(s) to cart\n");
+    printf(" --dump               dump an entire page of Flash or SRAM to "
+           "a file\n");
+    printf(" --restore            restore an entire page of Flash or SRAM "
+           "to a file\n");
+    printf(" --delete BANK...     delete ROMs with the specified banks\n");
+    printf(" --format             delete all ROMs of the specified page\n");
+    printf(" --title              list page content\n");
+    printf(" --version            print version number\n");
+    printf(" --help               show this help\n");
+    printf("\n");
+    printf("You MUST supply exactly one command.\n");
+    printf("ROMs specified in --read and --delete are designated by the bank "
+           "number printed\nby the --title command.\n");
+    printf("Dumping or restoring with a file ending in .sav will read/write to "
+           "SRAM.\n");
     printf("To select between ROM and SRAM, use ONE of the --save / --rom options.\n");
-    printf("\n");
-    printf("Advanced options:\n");
-    printf("    --blocksize <size>      bytes per block (default: 4096 read, 32 write)\n");
     printf("\n");
     printf("Written by Mike Ryan <mikeryan@lacklustre.net> and others\n");
     printf("See web site for more info:\n");
@@ -98,11 +107,14 @@ void get_options(int argc, char **argv) {
             {"verbose", 0, 0, 'v'},
             {"read", 0, 0, 'r'},
             {"write", 0, 0, 'w'},
+            {"restore", 0, 0, 'e'},
+            {"dump", 0, 0, 'u'},
             {"title", 0, 0, 't'},
             {"delete", 0, 0, 'd'},
             {"format", 0, 0, 'f'},
             {"blocksize", 1, 0, 's'},
             {"bank", 1, 0, 'b'},
+            {"page", 1, 0, 'b'},
             {"save", 0, 0, 'S'},
             {"rom", 0, 0, 'R'},
             {"force", 0, 0, 'F'},
@@ -134,6 +146,14 @@ void get_options(int argc, char **argv) {
             case 'w':
                 if (opts.mode != 0) goto mode_error;
                 opts.mode = MODE_WRITE;
+                break;
+            case 'e':
+                if (opts.mode != 0) goto mode_error;
+                opts.mode = MODE_RESTORE;
+                break;
+            case 'u':
+                if (opts.mode != 0) goto mode_error;
+                opts.mode = MODE_DUMP;
                 break;
             case 't':
                 if (opts.mode != 0) goto mode_error;
@@ -199,7 +219,8 @@ void get_options(int argc, char **argv) {
             printf("Error: you must provide bank numbers\n");
             usage(argv[0]);
         }
-    } else if (opts.mode == MODE_WRITE || opts.mode == MODE_READ) {
+    } else if (opts.mode == MODE_WRITE || opts.mode == MODE_READ ||
+               opts.mode == MODE_RESTORE || opts.mode == MODE_DUMP) {
         // user didn't give a filename
         if (optind >= argc) {
             printf("Error: you must provide an %s filename\n", opts.mode == MODE_READ ? "output" : "input");
@@ -211,14 +232,15 @@ void get_options(int argc, char **argv) {
 
         // set a default blocksize if the user hasn't given one
         if (opts.blocksize == 0)
-            opts.blocksize = opts.mode == MODE_READ ? BLOCKSIZE_READ : BLOCKSIZE_WRITE;
+            opts.blocksize = (opts.mode == MODE_READ
+                || opts.mode == MODE_DUMP)? BLOCKSIZE_READ : BLOCKSIZE_WRITE;
     }
 
     return;
 
 mode_error:
-    printf("Error: must supply exactly one of --read, --write, --delete, "
-        "--format or --title\n");
+    printf("Error: must supply exactly one of --read, --write, --dump, "
+           "--restore, --delete, --format or --title\n");
     usage(argv[0]);
 
 mode_error2:
@@ -245,16 +267,10 @@ int main(int argc, char **argv) {
         printf("claimed EMS cart\n");
 
     // we'll need a buffer one way or another
-    int blocksize = opts.blocksize;
-    uint32_t offset = 0;
     uint32_t base = opts.bank * PAGESIZE;
     if (opts.verbose)
         printf("base address is 0x%X\n", base);
     
-    unsigned char *buf = malloc(blocksize);
-    if (buf == NULL)
-        err(1, "malloc");
-
     // determine what we're reading/writing from/to
     int space = opts.space;
     if (space == 0 && opts.file != NULL) {
@@ -274,59 +290,12 @@ int main(int argc, char **argv) {
 
     // read the ROM and save it into the file
     if (opts.mode == MODE_READ) {
-        FILE *save_file = fopen(opts.file, "w");
-        if (save_file == NULL)
-            err(1, "Can't open %s for writing", opts.file);
-
-        if (opts.verbose && space == FROM_ROM)
-            printf("Saving ROM into %s\n", opts.file);
-        else if (opts.verbose)
-            printf("Saving SAVE into %s\n", opts.file);
-
-        while ((offset + blocksize) <= limits[space]) {
-            r = ems_read(space, offset + base, buf, blocksize);
-            if (r != blocksize) {
-                warnx("can't read %d bytes at offset %u\n", blocksize, offset);
-                return 1;
-            }
-
-            r = fwrite(buf, blocksize, 1, save_file);
-            if (r != 1)
-                err(1, "can't write %d bytes into file at offset %u", blocksize, offset);
-
-            offset += blocksize;
-        }
-
-        fclose(save_file);
-
-        if (opts.verbose)
-            printf("Successfully wrote %u bytes into %s\n", offset, opts.file);
-    }
-
-    // write ROM in the file to bank 1
-    else if (opts.mode == MODE_WRITE && space == TO_SRAM) {
-        FILE *write_file = fopen(opts.file, "r");
-        if (write_file == NULL)
-            err(1, "Can't open SAVE file %s", opts.file);
-
-        if (opts.verbose)
-            printf("Writing SAVE file %s\n", opts.file);
-
-        while ((offset + blocksize) <= limits[space] && fread(buf, blocksize, 1, write_file) == 1) {
-            r = ems_write(space, offset + base, buf, blocksize);
-            if (r != blocksize) {
-                warnx("can't write %d bytes at offset %u", blocksize, offset);
-                return 1;
-            }
-
-            offset += blocksize;
-        }
-
-        fclose(write_file);
-
-        if (opts.verbose)
-            printf("Successfully wrote %u from %s\n", offset, opts.file);
-    } else if (opts.mode == MODE_WRITE && space == TO_ROM) {
+        cmd_read(opts.bank, opts.verbose, opts.rem_argc, opts.rem_argv);
+    } else if (opts.mode == MODE_DUMP) {
+        cmd_dump(opts.bank, opts.verbose, opts.file, space);
+    } else if (opts.mode == MODE_RESTORE) {
+        cmd_restore(opts.bank, opts.verbose, opts.file, space);
+    } else if (opts.mode == MODE_WRITE) {
         cmd_write(opts.bank, opts.verbose, opts.force, opts.rem_argc, opts.rem_argv);
     } else if (opts.mode == MODE_DELETE) {
         cmd_delete(opts.bank, opts.verbose, opts.rem_argc, opts.rem_argv);
@@ -341,9 +310,6 @@ int main(int argc, char **argv) {
     // should never reach here
     else
         errx(1, "Unknown mode %d, file a bug report", opts.mode);
-
-    // belt and suspenders
-    free(buf);
 
     return 0;
 }

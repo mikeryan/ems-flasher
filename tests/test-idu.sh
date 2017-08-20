@@ -80,7 +80,7 @@ testdefrag() {
     )
 
     if [ $freetotal -eq 0 ]; then
-        continue
+        return 0
     fi
 
     size=$((freerommaxsize*2))

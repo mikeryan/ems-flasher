@@ -1,4 +1,4 @@
-.Dd October 18, 2013
+.Dd August 18, 2017
 .Dt EMS-FLASHER 1
 .Os
 .Sh NAME
@@ -6,69 +6,140 @@
 .Nd utility to flash EMS 64 Mbit USB Game Boy cartridge
 .Sh SYNOPSIS
 .Nm
-.Fl Fl read\ \&
-.Op Fl Fl bank Ar num
-.Op Fl Fl blocksize Ar size
-.Op Fl Fl rom
-.Op Fl Fl save
-.Op Fl Fl verbose
-.Ar romfile
-.Nm
-.Fl Fl write
-.Op Fl Fl bank Ar num
-.Op Fl Fl blocksize Ar size
-.Op Fl Fl rom
-.Op Fl Fl save
-.Op Fl Fl verbose
-.Ar romfile
-.Nm
-.Fl Fl title
+.Op Ar option ...
+.Ar command
+.Op Ar arg ...
 .Sh DESCRIPTION
 The
 .Nm
 utility reads data from or writes data to a EMS 64 Mbit USB Game Boy cartridge.
-One of the following flags is required:
+See
+.Sx "THE EMS CARTRIDGE"
+for details about the cartridge itself.
+.Sh OPTIONS
 .Bl -tag -width x
-.It Fl Fl read
-read ROM/SRAM from cart
-.It Fl Fl write
-write ROM/SRAM to cart
-.It Fl Fl header
-print header of ROMs on cart to standard output
-.El
-.Pp
-When in write or read mode,
-.Nm
-will automatically choose ROM versus SRAM based on the filename:
-if the filename ends in
-.Dq .sav ,
-SRAM is assumed.
-.Pp
-In read or write mode, the available options are as follows:
-.Bl -tag -width Ds
-.It Fl Fl bank
-Select cart bank (1 or 2).
-.It Fl Fl blocksize Ar size
-Specify the blocksize in bytes.
-The default is 4096 for read, 32 for write.
+.It Fl Fl page Ar num
+Select cart page (1 or 2). Page 1 will be selected if this option is not
+provided.
+.It Fl Fl force
+Used with
+.Fl Fl write .
+Force writing ROMs from different models of Game Boy on the same page.
 .It Fl Fl rom
-Force read/write of Flash ROM.
+Force
+.Fl Fl dump
+and
+.Fl Fl restore
+to use the flash memory. This is the default unless the filename ends with
+.Dq .sav .
 .It Fl Fl save
-Force read/write of SRAM.
+Force
+.Fl Fl dump
+and
+.Fl Fl restore
+to use the Save RAM.
 .It Fl Fl verbose
-Display more information.
+Display more information and a progress bar.
 .El
+.Sh COMMANDS
+.Bl -tag -width x
+.It Fl Fl write Ar romfile ...
+Add ROMs to the selected page. See
+.Sx MIXING ROMS OF DIFFERENT MODELS
+for the rules to follow to mix ROMs targetting different models of the
+console.
+.It Fl Fl dump Ar file
+Backup an entire flash page or the SRAM to a file. The source can be
+selected by
+.Fl Fl rom
+or
+.Fl Fl save .
+.It Fl Fl restore Ar file
+Restore a backup taken by
+.Fl Fl dump
+to flash or SRAM. The source can be
+selected by
+.Fl Fl rom
+or
+.Fl Fl save .
+.It Fl Fl title
+Print the content of the selected page.
+.It Fl Fl delete Ar bank ...
+Delete the specified ROMs.
+.It Fl Fl format
+Delete all ROMs of the selected page.
+.El
+.Pp
+For
+.Fl Fl read 
+and
+.Fl Fl delete ,
+ROMs are identified by the number of their first bank, which is printed by the
+.Fl Fl title
+command.
+.Sh THE EMS CARTRIDGE
+.Pp
+The cartridge is composed of 8 MB (megabytes) of flash memory,
+128 KB (kilobytes) of
+static RAM that is backed up by a battery and of a MBC5-like memory controller.
+.Pp
+The flash memory is splitted into two pages of 4 MB (megabytes) each.
+128 ROMs of 32 KB can fit in a page.
+.Pp
+The static RAM is not paged and there is no partitioning mechanism that would
+allow it to be shared by multiple ROMs. That means when a ROM save data to
+the SRAM, it will likely corrupt previous data placed by another ROM.
+.Pp
+Many ROMs should work flawlessly but others may experiment crashes or other
+issues due to the fact that the memory controller of the EMS cartridge doesn't
+emulate the MBC5 perfectly and that the chip is not fully backward-compatible
+with previous versions.
+.Pp
+See
+.Lk http://blog.gg8.se/gameboyprojects/week09/EMS_FAQ.txt
+for details on programming the memory controler of the EMS cartridge.
+.Sh MIXING ROMS OF DIFFERENT MODELS
+.Pp
+Each ROM has a mode set in their header to signal a Game Boy Color
+or a Super Game Boy console
+if it must be run in compatibility mode, i.e., with the behaviours of an
+original Game Boy or with the enhancements offered by the console (wich present
+some incompatibilities with the original console).
+.Pp
+On the EMS cartridge, only one mode can be set per page. All ROMs of a page
+will be run with that mode regardless the mode of the ROMs.
+.Pp
+The mode is set at the time of writing the first ROM of an empty page.
+.Pp
+The original Game Boy disregard this flag and ROMs can be mixed and run as
+long as they are compatible with the console.
+However, on other models,
+you can't mix, on the same page, ROMs targetting the original Game Boy
+with others supporting enhancements of the host console.
+In other words, if you intend to use the card on a Super Game Boy or
+a Game Boy Color, you should isolate, resp., the Super Game Boy ROMs or
+the Game Boy Color ROMS on a same page and put the other ROMs on the other page.
+E.g. if you own a Game Boy Color, you could put all the Game Boy Color ROMs in
+page 1 and the Super Game Boy and Classic Game Boy ROMs in the other
+(using
+.Fl Fl force ) .
 .Sh EXIT STATUS
 .Ex -std ems-flasher
 .Sh EXAMPLES
-Write the ROM to the cart:
+Add a ROM to the cart:
 .Dl $ ems-flasher --write totally_legit_rom.gb
 .Pp
-Save the contents of bank 2 into a file; print some extra info:
-.Dl $ ems-flasher --verbose --bank 2 --read not_warez.gb
+Add several ROMs to the cart:
+.Dl $ ems-flasher --write copyright.gb infringement.gb
 .Pp
-Read the SRAM from bank 1:
-.Dl $ ems-flasher --read my_pokeymans.sav
+Save the contents of page 2 into a file; print some extra info:
+.Dl $ ems-flasher --verbose --page 2 --dump not_warez.gb
+.Pp
+Read the SRAM from page 1:
+.Dl $ ems-flasher --dump my_pokeymans.sav
+.Pp
+Read the ROM starting at bank 64 to a file:
+.Dl $ ems-flasher --read 64:totally_legit_rom.gb
 .Pp
 Print out the headers:
 .Dl $ ems-flasher --title

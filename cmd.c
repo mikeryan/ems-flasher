@@ -317,6 +317,65 @@ cmd_format(int page, int verbose) {
 }
 
 /*
+ * --restore and --dump commands handling
+ */
+
+void
+cmd_restore(int page, int verbose, char *path, int to) {
+    struct progress_totals totals = {0};
+    struct stat buf;
+    ems_size_t base, size;
+
+    if (to == TO_ROM) {
+        base = page * PAGESIZE;
+        size = PAGESIZE;
+        totals.erase = PAGESIZE / ERASEBLOCKSIZE;
+        totals.writef= size;
+    } else {
+        base = 0;
+        size = SRAMSIZE;
+        totals.writef= size;
+    }
+
+    if (stat(path, &buf) == -1)
+        err(1, "can't stat %s", path);
+    if (buf.st_size != size)
+        errx(1, "file has an invalid size");
+
+    progress_start(totals);
+
+    blocksignals();
+    catchint();
+    flash_init(verbose?progress:NULL, checkint);
+    if (flash_writef_to(to, base, size, path))
+        errx(1, "%s", flash_lasterrorstr);
+    restoreint();
+}
+
+void
+cmd_dump(int page, int verbose, char *path, int from) {
+    struct progress_totals totals = {0};
+    ems_size_t base, size;
+
+    if (from == FROM_ROM) {
+        base = page * PAGESIZE;
+        size = PAGESIZE;
+        totals.read = PAGESIZE;
+    } else {
+        base = 0;
+        size = SRAMSIZE;
+        totals.read = SRAMSIZE;
+    }
+    progress_start(totals);
+    blocksignals();
+    catchint();
+    flash_init(verbose?progress:NULL, checkint);
+    if (flash_readf_from(from, path, size, base))
+        errx(1, "%s", flash_lasterrorstr);
+    restoreint();
+}
+
+/*
  * --write command handling
  */
 
@@ -643,4 +702,93 @@ cmd_write(int page, int verbose, int force, int argc, char **argv) {
     image_update(&image, &updates);
     exit(apply_updates(page, verbose, updates));
     }
+}
+
+void
+cmd_read(int page, int verbose, int argc, char **argv) {
+    struct listing  listing;
+    struct {struct listing_rom *rom; char *path;} *romfiles;
+    ems_size_t totalread;
+
+    if (argc == 0)
+	return;
+
+    blocksignals();
+
+    if (list(page, &listing))
+	exit(1);
+
+    if ((romfiles = malloc(argc * sizeof(*romfiles))) == NULL)
+	err(1, "malloc");
+
+    totalread = 0;
+
+    for (int i = 0; i < argc; i++) {
+	ems_size_t      offset;
+	char           *path, *p;
+	int             bank;
+
+	long l = strtol(argv[i], &p, 10);
+	if (p == argv[i] || *p != ':')
+	    errx(1, "invalid argument format (should be BANK:FILENAME)");
+
+	if (l < 0 || l > PAGESIZE / BANKSIZE) {
+	    errx(1, "bank must range between 0 and %d",
+		  (int) (PAGESIZE / BANKSIZE - 1));
+	}
+	bank = l;
+
+	offset = bank * BANKSIZE;
+	path = p + 1;
+	if (*path == '\0')
+	    errx(1, "invalid filename");
+
+	struct listing_rom *rom = NULL;
+	for (int i = 0; i < listing.count; i++) {
+	    if (listing.romlist[i].offset == offset) {
+		rom = &listing.romlist[i];
+		break;
+	    }
+	}
+	if (rom == NULL)
+	    errx(1, "No ROM found at bank %d", bank);
+
+	if (rom->header.romsize == 0 ||
+	    offset + rom->header.romsize > PAGESIZE) {
+	    errx(1, "invalid ROM");
+	}
+
+        if (totalread >=0 && totalread <= EMS_SIZE_MAX - rom->header.romsize)
+            totalread += rom->header.romsize;
+        else
+            totalread = -1;
+
+	romfiles[i].path = path;
+        romfiles[i].rom = rom;
+    }
+
+    catchint();
+
+    if (verbose && totalread > 0)
+        progress_start((struct progress_totals){.read = totalread});
+
+    for (int i = 0; i < argc; i++) {
+        struct listing_rom *rom = romfiles[i].rom;
+        char *path = romfiles[i].path;
+
+	if (verbose) {
+	    printf("Copying bank %d (%s) to %s\n", rom->offset/BANKSIZE,
+                   rom->header.title, path);
+	}
+
+	flash_init(verbose ? progress : NULL, checkint);
+
+	if (flash_readf_from(FROM_ROM, path, rom->header.romsize,
+			     page * PAGESIZE + rom->offset))
+	    errx(1, "%s", flash_lasterrorstr);
+	if (verbose)
+            putchar('\n');
+    }
+
+    restoreint();
 }
