@@ -121,7 +121,7 @@ fi
 echo "#define MENUDIR \"$DATADIR\"" >> "$tmpd/conf"
 
 echo '#endif' >> "$tmpd/conf"
-if ! cmp -s "$tmp_conf" config.h; then
+if ! cmp -s "$tmpd/conf" config.h; then
     mv "$tmpd/conf" config.h
 fi
 
