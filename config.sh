@@ -91,7 +91,22 @@ then
     exit 1
 fi
 
-ldd "$tmpd/test_libpthread" > "$tmpd/lddout" || exit
+
+# detect and use either ldd (linux) or otool (macOS)
+if 
+    command -v ldd >/dev/null 2>&1
+then
+    LDD=ldd
+elif
+    command -v otool >/dev/null 2>&1
+then
+    LDD="otool -L"
+else
+    echo "System doesn't have ldd or otool... exiting."
+    exit 
+fi
+
+$LDD "$tmpd/test_libpthread" > "$tmpd/lddout" || exit
 
 if
     grep -q libpthread "$tmpd/lddout"
