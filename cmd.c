@@ -709,6 +709,7 @@ cmd_read(int page, int verbose, int argc, char **argv) {
     struct listing  listing;
     struct {struct listing_rom *rom; char *path;} *romfiles;
     ems_size_t totalread;
+    char read_error;
 
     if (argc == 0)
 	return;
@@ -722,6 +723,7 @@ cmd_read(int page, int verbose, int argc, char **argv) {
 	err(1, "malloc");
 
     totalread = 0;
+    read_error = 0;
 
     for (int i = 0; i < argc; i++) {
 	ems_size_t      offset;
@@ -758,10 +760,10 @@ cmd_read(int page, int verbose, int argc, char **argv) {
 	    errx(1, "invalid ROM");
 	}
 
-        if (totalread >=0 && totalread <= EMS_SIZE_MAX - rom->header.romsize)
+        if (!read_error && totalread <= EMS_SIZE_MAX - rom->header.romsize)
             totalread += rom->header.romsize;
         else
-            totalread = -1;
+            read_error = 1;
 
 	romfiles[i].path = path;
         romfiles[i].rom = rom;
@@ -769,7 +771,7 @@ cmd_read(int page, int verbose, int argc, char **argv) {
 
     catchint();
 
-    if (verbose && totalread > 0)
+    if (verbose && totalread > 0 && !read_error)
         progress_start((struct progress_totals){.read = totalread});
 
     for (int i = 0; i < argc; i++) {
